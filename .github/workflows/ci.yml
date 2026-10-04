@@ -61,3 +61,22 @@ jobs:
           upload: ${{ github.event_name != 'pull_request' }}
       - name: Show outputs
         run: echo "findings=${{ steps.aca.outputs.findings }} sarif=${{ steps.aca.outputs.sarif-file }}"
+
+  container-build:
+    name: Build the container image and run it
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the image, print --help and audit the sample project from a mount
+        run: |
+          docker build --build-arg VERSION=ci -t agent-config-audit:ci .
+          docker run --rm agent-config-audit:ci --help > help.txt && grep "^usage: agent-config-audit" help.txt
+          docker run --rm agent-config-audit:ci --version
+          test "$(docker run --rm --entrypoint id agent-config-audit:ci -u)" = "1000"
+          docker run --rm -v "$PWD/examples/sample-project:/work:ro" agent-config-audit:ci --format markdown > report.md
+          diff <(grep -v '^Root:' report.md) <(grep -v '^Root:' examples/report.md)
+          set +e
+          docker run --rm -v "$PWD/examples/sample-project:/work:ro" agent-config-audit:ci --fail-on high > /dev/null
+          test $? -eq 1
