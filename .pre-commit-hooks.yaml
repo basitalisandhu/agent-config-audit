@@ -2,7 +2,7 @@
 #
 #   repos:
 #     - repo: https://github.com/basitalisandhu/agent-config-audit
-#       rev: v0.1.0
+#       rev: v0.1.1
 #       hooks:
 #         - id: agent-config-audit
 #
