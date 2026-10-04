@@ -2,7 +2,7 @@
 
 Audit AI agent configuration files for security risks: one command reads the files that launch and instruct a coding agent (`.claude/settings*.json`, `.mcp.json`, `claude_desktop_config.json`, `.cursor/` rules and MCP config, `CLAUDE.md`, `AGENTS.md`, plugin manifests, hooks, skills) and reports pre-approved dangerous commands, bypassed permission prompts, secrets committed next to server definitions, unpinned MCP servers, hooks that phone home, and prompt-injection patterns hidden in instruction files. Output as a table, JSON, Markdown or SARIF for GitHub code scanning. Read-only, standard library only, no network, deterministic.
 
-Part of [Hisar](https://github.com/basitalisandhu/hisar) ([docs](https://basitalisandhu.github.io/hisar/)), open-source trust infrastructure for AI agents: who they are, what they may touch, and proof of what they did.
+Part of [Masoon](https://github.com/basitalisandhu/masoon) ([docs](https://basitalisandhu.github.io/masoon/)), open-source trust infrastructure for AI agents: who they are, what they may touch, and proof of what they did.
 
 [![CI](https://github.com/basitalisandhu/agent-config-audit/actions/workflows/ci.yml/badge.svg)](https://github.com/basitalisandhu/agent-config-audit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
@@ -112,7 +112,7 @@ Forty rules in six groups; every one is documented with its trigger and why it m
 | Permissions | PERM-001 to PERM-011 | `Bash(*)`, `rm`/`curl`/`sudo` with wildcards, `defaultMode: bypassPermissions`, `Write` for every path, `WebFetch` for every domain, whole MCP servers pre-approved, `enableAllProjectMcpServers`, `disableAllHooks`, bypass flags inside allow rules, `additionalDirectories: ["/"]`, no deny rules |
 | Hooks | HOOK-001 to HOOK-006 | Missing hook scripts, hooks that call `curl`/`ssh` or post to remote URLs, credentials in hook commands, `curl \| sh` in a hook, unquoted plugin root, world-writable scripts |
 | MCP servers | MCP-001 to MCP-008 | Plain `http://` or `ws://`, literal tokens in `headers` or `env`, unpinned `npx`/`uvx`/images, servers in `/tmp` or `Downloads`, `--dangerously-skip-permissions`, deprecated SSE, filesystem server rooted at `/` or `~`, raw IP addresses |
-| Secrets | SEC-001 | OpenAI, Anthropic, GitHub, GitLab, AWS, Slack, Google, Stripe, npm, Hugging Face and Hisar key formats, private key blocks, JWTs, high-entropy `api_key = ...` assignments; placeholders are skipped |
+| Secrets | SEC-001 | OpenAI, Anthropic, GitHub, GitLab, AWS, Slack, Google, Stripe, npm, Hugging Face and Masoon key formats, private key blocks, JWTs, high-entropy `api_key = ...` assignments; placeholders are skipped |
 | Instruction files | INJ-001 to INJ-009 | "ignore previous instructions", "do not tell the user", "send ... to https://", `curl \| bash`, "always run ... on session start", zero-width and bidi characters, Unicode tag characters, imperative HTML comments, base64 blobs, "disable hooks", `rm -rf ~`, "cat ~/.ssh/id_rsa" |
 | Skills, plugins, files | SKILL-001, SKILL-002, PLUGIN-001, FILE-001, CFG-001 | `allowed-tools: Bash`, missing skill metadata, plugin `bin/` on PATH, world-writable config, JSON that does not parse |
 
@@ -206,8 +206,8 @@ Issues and pull requests are welcome; the starter list is in [docs/good-first-is
 
 ## Sibling projects
 
-- [hisar](https://github.com/basitalisandhu/hisar): the platform front door, with the [docs site](https://basitalisandhu.github.io/hisar/).
-- [hisar-broker](https://basitalisandhu.github.io/hisar/hisar-broker.html): scoped, short-lived credentials for AI agents with approvals, kill switch and tamper-evident audit.
+- [masoon](https://github.com/basitalisandhu/masoon): the platform front door, with the [docs site](https://basitalisandhu.github.io/masoon/).
+- [Masoon Broker](https://basitalisandhu.github.io/masoon/masoon-broker.html): scoped, short-lived credentials for AI agents with approvals, kill switch and tamper-evident audit.
 - [llm-agent-control-plane](https://github.com/basitalisandhu/llm-agent-control-plane): deterministic policy enforcement point for LLM agents.
 - [agent-security-skills](https://github.com/basitalisandhu/agent-security-skills): Claude Code plugin and agentskills-compatible skill pack where these checks run inside a review.
 - [agent-threat-model](https://github.com/basitalisandhu/agent-threat-model): describe an agent system in YAML, get a STRIDE and OWASP Agentic threat model.
