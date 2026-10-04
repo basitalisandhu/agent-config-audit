@@ -34,7 +34,7 @@ agent-config-audit --include-home       # also ~/.claude, ~/.cursor, the Claude 
 Running it against [`examples/sample-project/`](examples/sample-project/), a small project with the usual mistakes (bypass mode, `Bash(*)`, a token in `.mcp.json`, a filesystem server rooted at `~`, a hook that posts to a collector, `curl | bash` in `CLAUDE.md`):
 
 ```text
-agent-config-audit 0.1.0: 4 file(s) scanned under examples/sample-project
+agent-config-audit 0.1.1: 4 file(s) scanned under examples/sample-project
 
 SEVERITY  ID        FILE                       FINDING
 ------------------------------------------------------
@@ -72,17 +72,17 @@ The same run as Markdown is committed at [`examples/report.md`](examples/report.
 Container image (linux/amd64 and linux/arm64), published to GitHub Packages on every release. Mount the project to audit at `/work`:
 
 ```bash
-docker run --rm -v "$PWD:/work:ro" ghcr.io/basitalisandhu/agent-config-audit:0.1.0 --fail-on high
-docker run --rm -v "$PWD:/work:ro" ghcr.io/basitalisandhu/agent-config-audit:0.1.0 --format sarif > agent-config-audit.sarif
+docker run --rm -v "$PWD:/work:ro" ghcr.io/basitalisandhu/agent-config-audit:0.1.1 --fail-on high
+docker run --rm -v "$PWD:/work:ro" ghcr.io/basitalisandhu/agent-config-audit:0.1.1 --format sarif > agent-config-audit.sarif
 ```
 
 The image runs as uid 1000. Each image is signed with cosign (keyless) and has a build provenance attestation and an SPDX SBOM (attached to the GitHub Release). To verify:
 
 ```bash
-cosign verify ghcr.io/basitalisandhu/agent-config-audit:0.1.0 \
+cosign verify ghcr.io/basitalisandhu/agent-config-audit:0.1.1 \
   --certificate-identity-regexp '^https://github.com/basitalisandhu/agent-config-audit/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
-gh attestation verify oci://ghcr.io/basitalisandhu/agent-config-audit:0.1.0 --owner basitalisandhu
+gh attestation verify oci://ghcr.io/basitalisandhu/agent-config-audit:0.1.1 --owner basitalisandhu
 ```
 
 Python package: requires Python 3.11 or newer and nothing else. PyPI publication is pending, so install from the repository:
@@ -176,7 +176,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: basitalisandhu/agent-config-audit@v0.1.0   # pin a release tag
+      - uses: basitalisandhu/agent-config-audit@v0.1.1   # pin a release tag
         with:
           fail-on: high            # none | info | low | medium | high | critical
 ```
@@ -188,7 +188,7 @@ Inputs: `root`, `fail-on`, `config`, `extra` (space-separated files), `sarif-fil
 ```yaml
 repos:
   - repo: https://github.com/basitalisandhu/agent-config-audit
-    rev: v0.1.0
+    rev: v0.1.1
     hooks:
       - id: agent-config-audit
         # args: ["--fail-on", "medium", "--config", ".agent-config-audit.toml"]
