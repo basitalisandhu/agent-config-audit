@@ -1,0 +1,9 @@
+[allow]
+ids = ["PERM-011"]
+paths = ["docs/**"]
+
+[[suppress]]
+id = "MCP-003"
+path = ".mcp.json"
+evidence = "server-a"
+reason = "server-a is pinned through the lockfile"

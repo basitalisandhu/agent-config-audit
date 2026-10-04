@@ -1,0 +1,101 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agent-config-audit"
+version = "0.1.0"
+description = "Audit AI agent configuration files for security risks: risky permissions, leaked secrets, unpinned MCP servers, exfiltrating hooks and prompt-injection patterns in CLAUDE.md, AGENTS.md, .cursor rules and plugin manifests."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Muhammad Basit Ali" }]
+keywords = [
+  "agent-security",
+  "ai-security",
+  "llm-security",
+  "prompt-injection",
+  "mcp",
+  "claude-code",
+  "cursor",
+  "secrets-detection",
+  "configuration-audit",
+  "sarif",
+  "security-automation",
+  "devsecops",
+  "github-action",
+  "pre-commit",
+  "cli",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Information Technology",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Security",
+  "Topic :: Software Development :: Quality Assurance",
+  "Typing :: Typed",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.5"]
+
+[project.scripts]
+agent-config-audit = "agent_config_audit.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/basitalisandhu/agent-config-audit"
+Repository = "https://github.com/basitalisandhu/agent-config-audit"
+Issues = "https://github.com/basitalisandhu/agent-config-audit/issues"
+Changelog = "https://github.com/basitalisandhu/agent-config-audit/blob/main/CHANGELOG.md"
+Documentation = "https://github.com/basitalisandhu/agent-config-audit/blob/main/docs/checks.md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["agent_config_audit"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "agent_config_audit/**",
+  "tests/**",
+  "examples/**",
+  "docs/**",
+  "README.md",
+  "LICENSE",
+  "CHANGELOG.md",
+  "pyproject.toml",
+]
+
+[tool.uv]
+dev-dependencies = ["pytest>=8.0", "ruff>=0.5", "build>=1.2"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = ["RUF012"]
+
+[tool.ruff.lint.per-file-ignores]
+# Pattern tables and finding messages are long literal strings; wrapping them hurts readability.
+"agent_config_audit/patterns.py" = ["E501"]
+"agent_config_audit/scanner.py" = ["E501"]
+"agent_config_audit/rules.py" = ["E501"]
+"agent_config_audit/report.py" = ["E501"]
+"agent_config_audit/cli.py" = ["E501"]
+"tests/*" = ["B011", "E501"]
+
+[tool.ruff.format]
+exclude = ["agent_config_audit/patterns.py", "agent_config_audit/scanner.py", "agent_config_audit/rules.py"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

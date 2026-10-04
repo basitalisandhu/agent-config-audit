@@ -1,0 +1,117 @@
+name: agent-config-audit
+description: Audit AI agent configuration files (.claude settings, .mcp.json, CLAUDE.md, AGENTS.md, .cursor rules, hooks, plugins) for security risks and upload SARIF to GitHub code scanning.
+author: Muhammad Basit Ali
+branding:
+  icon: shield
+  color: orange
+
+inputs:
+  root:
+    description: Directory to audit.
+    required: false
+    default: .
+  fail-on:
+    description: Fail the step when a finding of this severity or worse exists (none, info, low, medium, high, critical).
+    required: false
+    default: high
+  config:
+    description: Path to an allowlist file. Empty uses .agent-config-audit.toml in the root when present.
+    required: false
+    default: ""
+  extra:
+    description: Space-separated extra files to audit.
+    required: false
+    default: ""
+  sarif-file:
+    description: Where to write the SARIF report.
+    required: false
+    default: agent-config-audit.sarif
+  upload:
+    description: Upload the SARIF file to GitHub code scanning (needs security-events write permission).
+    required: false
+    default: "true"
+  python-version:
+    description: Python version to set up.
+    required: false
+    default: "3.12"
+  version:
+    description: agent-config-audit version to install from PyPI. Empty installs the action's own checkout.
+    required: false
+    default: ""
+
+outputs:
+  sarif-file:
+    description: Path of the SARIF report that was written.
+    value: ${{ steps.audit.outputs.sarif-file }}
+  findings:
+    description: Total number of findings.
+    value: ${{ steps.audit.outputs.findings }}
+
+runs:
+  using: composite
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - name: Install agent-config-audit
+      shell: bash
+      env:
+        ACA_VERSION: ${{ inputs.version }}
+        ACA_ACTION_PATH: ${{ github.action_path }}
+      run: |
+        python -m pip install --upgrade pip >/dev/null
+        if [ -n "$ACA_VERSION" ]; then
+          python -m pip install "agent-config-audit==$ACA_VERSION"
+        else
+          python -m pip install "$ACA_ACTION_PATH"
+        fi
+        agent-config-audit --version
+
+    - name: Audit
+      id: audit
+      shell: bash
+      env:
+        ROOT: ${{ inputs.root }}
+        CONFIG: ${{ inputs.config }}
+        EXTRA: ${{ inputs.extra }}
+        SARIF_FILE: ${{ inputs.sarif-file }}
+      run: |
+        args=("$ROOT")
+        [ -n "$CONFIG" ] && args+=(--config "$CONFIG")
+        for f in $EXTRA; do args+=(--extra "$f"); done
+        agent-config-audit "${args[@]}" --format sarif --output "$SARIF_FILE"
+        agent-config-audit "${args[@]}" --format json --output aca-summary.json
+        total=$(python -c "import json; print(json.load(open('aca-summary.json'))['summary']['total'])")
+        rm -f aca-summary.json
+        echo "sarif-file=$SARIF_FILE" >> "$GITHUB_OUTPUT"
+        echo "findings=$total" >> "$GITHUB_OUTPUT"
+        {
+          echo "### agent-config-audit"
+          echo
+          echo '```'
+          agent-config-audit "${args[@]}"
+          echo '```'
+        } >> "$GITHUB_STEP_SUMMARY"
+
+    - name: Upload SARIF to code scanning
+      if: ${{ inputs.upload == 'true' }}
+      uses: github/codeql-action/upload-sarif@v3
+      with:
+        sarif_file: ${{ inputs.sarif-file }}
+        category: agent-config-audit
+
+    - name: Enforce severity threshold
+      if: ${{ inputs.fail-on != 'none' }}
+      shell: bash
+      env:
+        ROOT: ${{ inputs.root }}
+        CONFIG: ${{ inputs.config }}
+        EXTRA: ${{ inputs.extra }}
+        FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        args=("$ROOT")
+        [ -n "$CONFIG" ] && args+=(--config "$CONFIG")
+        for f in $EXTRA; do args+=(--extra "$f"); done
+        agent-config-audit "${args[@]}" --fail-on "$FAIL_ON" >/dev/null

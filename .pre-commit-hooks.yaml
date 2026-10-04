@@ -1,0 +1,19 @@
+# Use in another repository:
+#
+#   repos:
+#     - repo: https://github.com/basitalisandhu/agent-config-audit
+#       rev: v0.1.0
+#       hooks:
+#         - id: agent-config-audit
+#
+# The hook audits the whole project whenever an agent configuration file is staged and fails the
+# commit on findings of high severity or worse. Override `args` to change the threshold or add
+# `--config path/to/allowlist.toml`.
+- id: agent-config-audit
+  name: agent-config-audit
+  description: Audit AI agent configuration files (.claude, .mcp.json, CLAUDE.md, AGENTS.md, .cursor, hooks, plugins) for security risks.
+  entry: agent-config-audit
+  args: ["--fail-on", "high"]
+  language: python
+  pass_filenames: false
+  files: (^|/)(CLAUDE(\.local)?\.md|AGENTS\.md|GEMINI\.md|\.cursorrules|\.windsurfrules|\.clinerules|\.mcp\.json|claude_desktop_config\.json|hooks\.json|plugin\.json|SKILL\.md|config\.toml|copilot-instructions\.md)$|(^|/)\.(claude|cursor|vscode|codex|gemini|windsurf|continue|roo|github/instructions)/

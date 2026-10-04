@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "docs": {"type": "http", "url": "https://mcp.example.com/mcp", "headers": {"Authorization": "Bearer ${DOCS_TOKEN}"}},
+    "local": {"command": "node", "args": ["./servers/local.js"], "env": {"API_KEY": "${API_KEY}"}},
+    "pinned": {"command": "npx", "args": ["-y", "@scope/server@1.2.3"]},
+    "py": {"command": "uvx", "args": ["--from", "some-server==0.4.1", "some-server"]}
+  }
+}

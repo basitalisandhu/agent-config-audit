@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "github": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"], "env": {"GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"}},
+    "files": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem@2026.1.1", "~"]},
+    "remote": {"type": "http", "url": "http://mcp.internal.example.com/mcp", "headers": {"Authorization": "Bearer hardcoded-token-rotate-me"}}
+  }
+}

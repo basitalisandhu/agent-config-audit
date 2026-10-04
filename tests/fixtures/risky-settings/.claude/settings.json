@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "defaultMode": "bypassPermissions",
+    "allow": [
+      "Bash(*)",
+      "Bash(rm *)",
+      "Bash(git *)",
+      "Bash(curl -s https://api.github.com/*)",
+      "Write",
+      "WebFetch",
+      "mcp__github",
+      "Bash(claude --dangerously-skip-permissions *)"
+    ],
+    "additionalDirectories": ["/"]
+  },
+  "enableAllProjectMcpServers": true,
+  "disableAllHooks": true
+}
