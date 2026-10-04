@@ -1,5 +1,10 @@
 name: Release
 
+# Off by default. The container image (publish-github-packages.yml) runs on the same tags, so this
+# workflow only runs once PyPI is set up: configure a trusted publisher on PyPI for this repository
+# (workflow file "release.yml", environment "pypi"), then set the repository variable PYPI_PUBLISH
+# to "true" (Settings > Secrets and variables > Actions > Variables). Until then every job is skipped.
+
 on:
   push:
     tags: ["v*"]
@@ -10,6 +15,7 @@ permissions:
 jobs:
   build:
     name: Build distributions
+    if: vars.PYPI_PUBLISH == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +38,7 @@ jobs:
 
   publish:
     name: Publish to PyPI
+    if: vars.PYPI_PUBLISH == 'true'
     needs: build
     runs-on: ubuntu-latest
     environment: pypi
@@ -46,6 +53,7 @@ jobs:
 
   release:
     name: Create GitHub release
+    if: vars.PYPI_PUBLISH == 'true'
     needs: publish
     runs-on: ubuntu-latest
     permissions:
@@ -64,7 +72,12 @@ jobs:
             found { print }
           ' CHANGELOG.md > notes.md
           if [ ! -s notes.md ]; then echo "Release $GITHUB_REF_NAME" > notes.md; fi
-      - name: Create release
+      - name: Create release (or add the distributions if publish-github-packages.yml created it first)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file notes.md
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes-file notes.md
+          fi

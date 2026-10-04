@@ -71,7 +71,23 @@ The same run as Markdown is committed at [`examples/report.md`](examples/report.
 
 ## Install
 
-Requires Python 3.11 or newer and nothing else. PyPI publication is pending, so install from the repository:
+Container image (linux/amd64 and linux/arm64), published to GitHub Packages on every release. Mount the project to audit at `/work`:
+
+```bash
+docker run --rm -v "$PWD:/work:ro" ghcr.io/basitalisandhu/agent-config-audit:0.1.0 --fail-on high
+docker run --rm -v "$PWD:/work:ro" ghcr.io/basitalisandhu/agent-config-audit:0.1.0 --format sarif > agent-config-audit.sarif
+```
+
+The image runs as uid 1000. Each image is signed with cosign (keyless) and has a build provenance attestation and an SPDX SBOM (attached to the GitHub Release). To verify:
+
+```bash
+cosign verify ghcr.io/basitalisandhu/agent-config-audit:0.1.0 \
+  --certificate-identity-regexp '^https://github.com/basitalisandhu/agent-config-audit/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+gh attestation verify oci://ghcr.io/basitalisandhu/agent-config-audit:0.1.0 --owner basitalisandhu
+```
+
+Python package: requires Python 3.11 or newer and nothing else. PyPI publication is pending, so install from the repository:
 
 ```bash
 pipx install git+https://github.com/basitalisandhu/agent-config-audit                            # isolated CLI install
@@ -80,7 +96,13 @@ pip install git+https://github.com/basitalisandhu/agent-config-audit            
 git clone https://github.com/basitalisandhu/agent-config-audit && cd agent-config-audit && uv sync   # for development
 ```
 
-Once the package is on PyPI the short forms work too: `pipx install agent-config-audit`, `uvx agent-config-audit`.
+Once published to PyPI:
+
+```bash
+pip install agent-config-audit
+```
+
+The other short forms work then too: `pipx install agent-config-audit`, `uvx agent-config-audit`.
 
 ## Usage
 
