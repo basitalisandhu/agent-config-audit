@@ -255,6 +255,9 @@ class Auditor:
         spec = spec[:-1] if spec.endswith(")") else spec
         line = self.line_of(text, rule)
         tool_l = tool.strip()
+        if tool_l == "Read" and re.search(r"(?:^|[/\\])(?:\.env[^/\\]*|\.ssh|\.aws|\.netrc|id_rsa|id_ed25519)(?:$|[/\\])|(?:^|[/\\])[^/\\]*\.(?:pem|key)$", spec):
+            self.add("PERM-012", "medium", "permissions", "Read allow rule covers a secret-bearing path", path, line, rule,
+                     "Remove the pre-approval for credential stores and private keys; allow only the project files needed and retain a prompt for secrets.")
         if tool_l == "Bash":
             words = spec.split()
             if not spec.strip() or spec.strip() in {"*", "**", ":*"}:

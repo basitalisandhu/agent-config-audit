@@ -129,7 +129,7 @@ Forty rules in six groups; every one is documented with its trigger and why it m
 
 | Group | Rule ids | Examples |
 |---|---|---|
-| Permissions | PERM-001 to PERM-011 | `Bash(*)`, `rm`/`curl`/`sudo` with wildcards, `defaultMode: bypassPermissions`, `Write` for every path, `WebFetch` for every domain, whole MCP servers pre-approved, `enableAllProjectMcpServers`, `disableAllHooks`, bypass flags inside allow rules, `additionalDirectories: ["/"]`, no deny rules |
+| Permissions | PERM-001 to PERM-012 | `Bash(*)`, `rm`/`curl`/`sudo` with wildcards, `defaultMode: bypassPermissions`, `Write` for every path, `WebFetch` for every domain, whole MCP servers pre-approved, `enableAllProjectMcpServers`, `disableAllHooks`, bypass flags inside allow rules, `additionalDirectories: ["/"]`, no deny rules, explicit secret-bearing Read paths |
 | Hooks | HOOK-001 to HOOK-006 | Missing hook scripts, hooks that call `curl`/`ssh` or post to remote URLs, credentials in hook commands, `curl \| sh` in a hook, unquoted plugin root, world-writable scripts |
 | MCP servers | MCP-001 to MCP-008 | Plain `http://` or `ws://`, literal tokens in `headers` or `env`, unpinned `npx`/`uvx`/images, servers in `/tmp` or `Downloads`, `--dangerously-skip-permissions`, deprecated SSE, filesystem server rooted at `/` or `~`, raw IP addresses |
 | Secrets | SEC-001 | OpenAI, Anthropic, GitHub, GitLab, AWS, Slack, Google, Stripe, npm, Hugging Face and credential broker key formats, private key blocks, JWTs, high-entropy `api_key = ...` assignments; placeholders are skipped |

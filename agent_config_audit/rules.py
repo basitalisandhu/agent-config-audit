@@ -14,6 +14,7 @@ RULES: dict[str, dict[str, str]] = {
     "PERM-009": {"name": "Permission-bypass flag in an allow rule", "category": "permissions", "severity": "high", "description": "A pre-approved command carries a flag such as --dangerously-skip-permissions."},
     "PERM-010": {"name": "Whole home or root directory granted", "category": "permissions", "severity": "medium", "description": "additionalDirectories includes /, ~ or the home directory."},
     "PERM-011": {"name": "Broad allow rules with no deny rules", "category": "permissions", "severity": "low", "description": "There is no backstop for the obvious disasters."},
+    "PERM-012": {"name": "Read allow covers a secret-bearing path", "category": "permissions", "severity": "medium", "description": "A Read allow rule covers environment files, credential stores or private-key paths."},
     "HOOK-001": {"name": "Hook script does not exist", "category": "hooks", "severity": "medium", "description": "The control the hook was meant to add is absent; failure mode depends on the host."},
     "HOOK-002": {"name": "Hook can reach the network", "category": "hooks", "severity": "high", "description": "Hook input contains commands, paths and prompts; a hook that calls curl, ssh or a remote URL can exfiltrate them."},
     "HOOK-003": {"name": "Credential inside a hook command", "category": "hooks", "severity": "critical", "description": "A known credential format sits in a settings file."},

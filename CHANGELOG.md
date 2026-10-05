@@ -6,7 +6,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-Nothing yet.
+- Add PERM-012 (medium) for explicit secret-bearing `Read(...)` allow paths, with ordinary project-path negatives.
 
 ## [0.1.1] - 2026-10-06
 

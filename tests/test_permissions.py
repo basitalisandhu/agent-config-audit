@@ -1,6 +1,55 @@
 from __future__ import annotations
 
+import json
+
+import pytest
+
 from .conftest import FIXTURES, audit, by_id, ids
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "./.env*",
+        "~/.ssh/**",
+        "/home/alice/.aws/credentials",
+        "~/.netrc",
+        "**/*.pem",
+        "**/*.key",
+        "./id_rsa",
+        "./id_ed25519",
+        "./.env.local",
+    ],
+)
+def test_perm_012_secret_path_read_allow(tmp_path, spec):
+    from .conftest import write
+
+    rule = f"Read({spec})"
+    write(tmp_path, ".claude/settings.json", json.dumps({"permissions": {"allow": [rule]}}))
+    _, rep = audit(tmp_path)
+    findings = by_id(rep, "PERM-012")
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "medium"
+    assert findings[0]["evidence"] == rule
+    assert findings[0]["line"]
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        "Read(./src/**)",
+        "Read(./keynote.md)",
+        "Read(./environment.md)",
+        "Read(./aws-guide.md)",
+        "Write(./id_rsa)",
+    ],
+)
+def test_perm_012_ordinary_or_non_read_rules_are_not_secret_reads(tmp_path, rule):
+    from .conftest import write
+
+    write(tmp_path, ".claude/settings.json", json.dumps({"permissions": {"allow": [rule]}}))
+    _, rep = audit(tmp_path)
+    assert "PERM-012" not in ids(rep)
 
 
 def test_clean_project_has_no_findings():
