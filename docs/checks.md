@@ -19,7 +19,7 @@ The rule ids are shared with the `agent-config-audit` skill in [agent-security-s
 | <a id="perm-009"></a>PERM-009 [high] | An allow rule carries `--dangerously-skip-permissions` or similar | Bypass flag baked into a pre-approval |
 | <a id="perm-010"></a>PERM-010 [medium] | `additionalDirectories` includes `/`, `~` or the home directory | Whole-disk read and write scope |
 | <a id="perm-011"></a>PERM-011 [low] | Broad allow rules and no deny rules | No backstop for the obvious disasters |
-| <a id="perm-012"></a>PERM-012 [medium] | Read allow covers a secret-bearing path | Detects explicit `.env*`, `.ssh`, `.aws`, `.netrc`, `*.pem`, `*.key`, `id_rsa` and `id_ed25519` path components; does not read those files or infer every wildcard expansion |
+| <a id="perm-012"></a>PERM-012 [medium] | `Read(...)` in `permissions.allow` names `.env*`, `.ssh`, `.aws`, `.netrc`, `*.pem`, `*.key`, `id_rsa` or `id_ed25519`; `.env` components ending in `.example`, `.sample` or `.template` are excluded | Secrets reach the model without a prompt. This checks explicit path shapes, not file contents or every wildcard expansion |
 
 ## Hooks (settings hooks, plugin hooks/hooks.json, plugin.json hooks)
 

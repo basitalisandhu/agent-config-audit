@@ -125,7 +125,7 @@ Exit codes: 0 clean (or no `--fail-on`), 1 findings at or above the threshold, 2
 
 ### What is checked
 
-Forty rules in six groups; every one is documented with its trigger and why it matters in [docs/checks.md](docs/checks.md).
+Forty-one rules in six groups; every one is documented with its trigger and why it matters in [docs/checks.md](docs/checks.md).
 
 | Group | Rule ids | Examples |
 |---|---|---|

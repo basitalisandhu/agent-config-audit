@@ -6,7 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-- Add PERM-012 (medium) for explicit secret-bearing `Read(...)` allow paths, with ordinary project-path negatives.
+### Added
+
+- Add PERM-012 (medium) for explicit secret-bearing `Read(...)` allow paths, excluding ordinary project paths and `.env` templates ending in `.example`, `.sample` or `.template`.
 
 ## [0.1.1] - 2026-10-06
 
