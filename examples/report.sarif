@@ -6,8 +6,8 @@
    "tool": {
     "driver": {
      "name": "agent-config-audit",
-     "version": "0.1.1",
-     "semanticVersion": "0.1.1",
+     "version": "0.2.0",
+     "semanticVersion": "0.2.0",
      "informationUri": "https://github.com/basitalisandhu/agent-config-audit",
      "rules": [
       {
