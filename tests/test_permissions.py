@@ -1,6 +1,80 @@
 from __future__ import annotations
 
-from .conftest import FIXTURES, audit, by_id, ids
+import json
+
+import pytest
+
+from .conftest import FIXTURES, audit, by_id, ids, write
+
+
+@pytest.mark.parametrize(
+    "spec",
+    [
+        "./.env*",
+        "~/.ssh/**",
+        "/home/alice/.aws/credentials",
+        "~/.netrc",
+        "**/*.pem",
+        "**/*.key",
+        "./id_rsa",
+        "./id_ed25519",
+        "./.env.local",
+        "./.env.example.local",
+        "./.env.examples",
+        "./.env.sample*",
+    ],
+)
+def test_perm_012_secret_path_read_allow(tmp_path, spec):
+    rule = f"Read({spec})"
+    write(tmp_path, ".claude/settings.json", json.dumps({"permissions": {"allow": [rule]}}))
+    _, rep = audit(tmp_path)
+    findings = by_id(rep, "PERM-012")
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "medium"
+    assert findings[0]["evidence"] == rule
+    assert findings[0]["line"]
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        "Read(./src/**)",
+        "Read(./keynote.md)",
+        "Read(./environment.md)",
+        "Read(./aws-guide.md)",
+        "Write(./id_rsa)",
+        "Read(./.env.example)",
+        "Read(./.env.sample)",
+        "Read(./.env.template)",
+        "Read(./config/.env.local.example)",
+        r"Read(C:\project\.env.sample)",
+        "Read(./.env.template/README.md)",
+    ],
+)
+def test_perm_012_ordinary_or_non_read_rules_are_not_secret_reads(tmp_path, rule):
+    write(tmp_path, ".claude/settings.json", json.dumps({"permissions": {"allow": [rule]}}))
+    _, rep = audit(tmp_path)
+    assert "PERM-012" not in ids(rep)
+
+
+def test_perm_012_risky_reads_fixture():
+    _, rep = audit(FIXTURES / "risky-reads")
+    findings = by_id(rep, "PERM-012")
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "medium"
+    assert findings[0]["evidence"] == "Read(./.env.local)"
+    assert findings[0]["line"]
+    assert ".claude/settings.json" in rep["scanned_files"]
+
+
+def test_perm_012_windows_secret_path_still_warns(tmp_path):
+    rule = r"Read(C:\project\.env.local)"
+    write(tmp_path, ".claude/settings.json", json.dumps({"permissions": {"allow": [rule]}}))
+    _, rep = audit(tmp_path)
+    findings = by_id(rep, "PERM-012")
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "medium"
+    assert findings[0]["evidence"] == rule
 
 
 def test_clean_project_has_no_findings():
@@ -48,8 +122,6 @@ def test_perm_002_distinguishes_dangerous_from_broad_programs():
 
 
 def test_perm_011_requires_broad_allow_without_deny(tmp_path):
-    from .conftest import write
-
     write(tmp_path, ".claude/settings.json", '{"permissions": {"allow": ["Write"]}}')
     _, rep = audit(tmp_path)
     assert "PERM-011" in ids(rep)
@@ -63,8 +135,6 @@ def test_perm_011_requires_broad_allow_without_deny(tmp_path):
 
 
 def test_dont_ask_mode_is_medium(tmp_path):
-    from .conftest import write
-
     write(tmp_path, ".claude/settings.json", '{"permissions": {"defaultMode": "dontAsk"}}')
     _, rep = audit(tmp_path)
     f = by_id(rep, "PERM-003")
@@ -72,8 +142,6 @@ def test_dont_ask_mode_is_medium(tmp_path):
 
 
 def test_perm_002_treats_flags_before_a_wildcard_as_a_wildcard(tmp_path):
-    from .conftest import write
-
     write(
         tmp_path,
         ".claude/settings.json",

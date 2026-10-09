@@ -297,6 +297,32 @@
        }
       },
       {
+       "id": "PERM-012",
+       "name": "Readallowcoversasecret-bearingpath",
+       "shortDescription": {
+        "text": "Read allow covers a secret-bearing path"
+       },
+       "fullDescription": {
+        "text": "A Read allow rule covers environment files, credential stores or private-key paths."
+       },
+       "helpUri": "https://github.com/basitalisandhu/agent-config-audit/blob/main/docs/checks.md#perm-012",
+       "help": {
+        "text": "A Read allow rule covers environment files, credential stores or private-key paths."
+       },
+       "defaultConfiguration": {
+        "level": "warning"
+       },
+       "properties": {
+        "category": "permissions",
+        "security-severity": "5.0",
+        "tags": [
+         "security",
+         "agent-configuration",
+         "permissions"
+        ]
+       }
+      },
+      {
        "id": "HOOK-001",
        "name": "Hookscriptdoesnotexist",
        "shortDescription": {
@@ -1145,7 +1171,7 @@
     },
     {
      "ruleId": "INJ-004",
-     "ruleIndex": 29,
+     "ruleIndex": 30,
      "level": "error",
      "message": {
       "text": "Remote code piped into a shell. Download to a file, review it, pin a hash, then run it. Never pipe remote content into a shell from an instruction file."
@@ -1174,7 +1200,7 @@
     },
     {
      "ruleId": "HOOK-002",
-     "ruleIndex": 12,
+     "ruleIndex": 13,
      "level": "error",
      "message": {
       "text": "PostToolUse hook can reach the network. Hooks receive the tool input (commands, paths, prompts). A hook that calls curl, ssh or an external URL can exfiltrate them. Keep hooks local or document exactly what is sent where."
@@ -1203,7 +1229,7 @@
     },
     {
      "ruleId": "INJ-002",
-     "ruleIndex": 27,
+     "ruleIndex": 28,
      "level": "error",
      "message": {
       "text": "Instruction to hide actions from the user. Remove it. Agents must not be told to act without the user's knowledge."
@@ -1232,7 +1258,7 @@
     },
     {
      "ruleId": "MCP-007",
-     "ruleIndex": 23,
+     "ruleIndex": 24,
      "level": "error",
      "message": {
       "text": "Filesystem MCP server files exposes the whole home or root directory. Point it at the specific project directories the agent needs."
@@ -1261,7 +1287,7 @@
     },
     {
      "ruleId": "MCP-001",
-     "ruleIndex": 17,
+     "ruleIndex": 18,
      "level": "error",
      "message": {
       "text": "MCP server remote uses plain HTTP. Use https:// or wss://. Tokens in headers and every tool result travel in clear text otherwise."
@@ -1290,7 +1316,7 @@
     },
     {
      "ruleId": "MCP-002",
-     "ruleIndex": 18,
+     "ruleIndex": 19,
      "level": "error",
      "message": {
       "text": "Literal credential in headers.Authorization of MCP server remote. Use ${VAR} substitution instead of a literal token."
@@ -1319,7 +1345,7 @@
     },
     {
      "ruleId": "INJ-004",
-     "ruleIndex": 29,
+     "ruleIndex": 30,
      "level": "error",
      "message": {
       "text": "Instruction to auto-run commands. Instruction files that make the agent run commands on every session are a persistence mechanism; move the behaviour into a reviewed hook or remove it."
@@ -1348,7 +1374,7 @@
     },
     {
      "ruleId": "INJ-004",
-     "ruleIndex": 29,
+     "ruleIndex": 30,
      "level": "error",
      "message": {
       "text": "Instruction to auto-run commands. Instruction files that make the agent run commands on every session are a persistence mechanism; move the behaviour into a reviewed hook or remove it."
@@ -1493,7 +1519,7 @@
     },
     {
      "ruleId": "MCP-003",
-     "ruleIndex": 19,
+     "ruleIndex": 20,
      "level": "warning",
      "message": {
       "text": "MCP server github runs an unpinned npm package. Pin a version (@modelcontextprotocol/server-github@x.y.z) or install the package and point command at the installed binary; `npx -y` fetches whatever is latest on every start."
@@ -1522,7 +1548,7 @@
     },
     {
      "ruleId": "INJ-006",
-     "ruleIndex": 31,
+     "ruleIndex": 32,
      "level": "warning",
      "message": {
       "text": "HTML comment containing instructions. Rendered Markdown hides comments from readers but not from the model. Move the text into the open or delete it."
