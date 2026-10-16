@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-16
+
 ### Added
 
 - `@path` imports in `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` and `.claude/rules/` are followed the way Claude Code expands them: relative to the importing file, up to four hops, skipping code spans, fenced blocks and quoted paths, each file once. Findings point at the imported file and line; imports outside the root are read only with `--include-home` (#11).
@@ -63,7 +65,8 @@ All notable changes to this project are documented here. The format follows
 - Renamed the umbrella project from Hisar to Masoon; links, names and identifiers updated.
 - PyPI publishing (release.yml) is off until the repository variable `PYPI_PUBLISH` is set to `true`.
 
-[Unreleased]: https://github.com/basitalisandhu/agent-config-audit/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/basitalisandhu/agent-config-audit/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/basitalisandhu/agent-config-audit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/basitalisandhu/agent-config-audit/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/basitalisandhu/agent-config-audit/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/basitalisandhu/agent-config-audit/releases/tag/v0.1.0
