@@ -8,6 +8,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- `@path` imports in `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` and `.claude/rules/` are followed the way Claude Code expands them: relative to the importing file, up to four hops, skipping code spans, fenced blocks and quoted paths, each file once. Findings point at the imported file and line; imports outside the root are read only with `--include-home` (#11).
+- `docs/checks.md` rule tables are generated from `RULES` by `scripts/gen_checks_doc.py`; `make docs` regenerates them and CI fails when they are stale (#14).
 - PERM-013 reports permission rules that Claude Code skips or never matches: `mcp__` rules with parentheses, parameter rules on a primary field such as `Bash(command:rm *)`, `:*` in the middle of a pattern, and unanchored allow globs such as `*` or `mcp__*`. Medium in `deny` and `ask` (the restriction does not hold), info in `allow`.
 - PERM-002 reports environment runners pre-approved with a wildcard (`npx *`, `docker exec *`, `devbox run *`, `direnv exec *`, `mise exec *`, `uv run *`, `xargs *`) and rules that start with `*`, at high.
 - PowerShell rules are checked like Bash rules for PERM-001, PERM-002 and PERM-011.
@@ -19,6 +21,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- README first screen: who the tool is for, a three-line quick start, a real run on the sample project, and links to the related tools.
 - INJ-006 is low in `CLAUDE.md`, `CLAUDE.local.md` and `.claude/rules/`, because Claude Code strips block-level HTML comments from those files before loading them.
 - An empty scan now says that no agent configuration files were found, instead of reporting a clean result; `--fail-on` accepts upper case; an unknown `--ignore` id prints a warning; the table header shows the root relative to the current directory.
 

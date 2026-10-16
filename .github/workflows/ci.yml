@@ -30,6 +30,8 @@ jobs:
           ruff format --check .
       - name: Test
         run: python -m pytest -q
+      - name: Rule reference is generated from rules.py
+        run: python scripts/gen_checks_doc.py --check
       - name: Example report is current
         run: |
           agent-config-audit examples/sample-project --format markdown --output /tmp/report.md

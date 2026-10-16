@@ -6,6 +6,7 @@ The rule ids are shared with the `agent-config-audit` skill in [agent-security-s
 
 ## Permissions (Claude Code settings.json, Codex config.toml)
 
+<!-- rules:permissions -->
 | ID | Trigger | Why it matters |
 |---|---|---|
 | <a id="perm-001"></a>PERM-001 [critical] | `Bash`, `Bash(*)`, `Bash(:*)`, `PowerShell`, `PowerShell(*)` in `permissions.allow` | Any shell command runs without a prompt |
@@ -21,9 +22,11 @@ The rule ids are shared with the `agent-config-audit` skill in [agent-security-s
 | <a id="perm-011"></a>PERM-011 [low] | Broad allow rules and no deny rules | No backstop for the obvious disasters |
 | <a id="perm-012"></a>PERM-012 [medium] | `Read(...)` in `permissions.allow` names `.env*`, `.ssh`, `.aws`, `.netrc`, `*.pem`, `*.key`, `id_rsa` or `id_ed25519`; `.env` components ending in `.example`, `.sample` or `.template` are excluded | Secrets reach the model without a prompt. This checks explicit path shapes, not file contents or every wildcard expansion |
 | <a id="perm-013"></a>PERM-013 [medium, info] | A rule shape Claude Code skips or never matches: an `mcp__` rule with parentheses, a parameter rule on a primary field (`Bash(command:...)`, `Read(file_path:...)`, `WebFetch(url:...)`), `:*` in the middle of a pattern (`Bash(git:* push)`), and in `allow` an unanchored tool-name glob (`*`, `B*`, `mcp__*`). Medium in `deny` and `ask`, info in `allow` | A deny rule that is skipped gives a false sense of safety ([permissions](https://code.claude.com/docs/en/permissions#tool-name-wildcards)) |
+<!-- /rules:permissions -->
 
 ## Hooks (settings hooks, plugin hooks/hooks.json, plugin.json hooks, settings helpers, plugin monitors and LSP servers)
 
+<!-- rules:hooks -->
 | ID | Trigger | Why it matters |
 |---|---|---|
 | <a id="hook-001"></a>HOOK-001 [medium] | Command or first exec-form argument points at a script that does not exist | The control is absent; failure mode depends on the host |
@@ -34,11 +37,13 @@ The rule ids are shared with the `agent-config-audit` skill in [agent-security-s
 | <a id="hook-006"></a>HOOK-006 [high] | Hook script is world-writable | Anyone local can change what runs on every tool call |
 | <a id="hook-007"></a>HOOK-007 [medium] | A hook event name that is not one of the 33 Claude Code events (for example `preToolUse`); Gemini and Continue files are not checked | Claude Code ignores the entry at runtime, so the guard never runs |
 | <a id="hook-008"></a>HOOK-008 [medium] | `apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`, `gcpAuthRefresh` or `otelHeadersHelper` in project `.claude/settings*.json` | The repository decides which command produces your credentials, and project helpers run even before folder trust in `claude -p` ([permissions](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder)) |
+<!-- /rules:hooks -->
 
 `prompt` and `agent` hooks are scanned with the instruction-file rules (INJ-*), since their `prompt` text goes to a model. `mcp_tool` hooks are parsed but not reported.
 
 ## MCP servers (.mcp.json, .cursor/mcp.json, .vscode/mcp.json, claude_desktop_config.json, plugin .mcp.json, Codex config.toml)
 
+<!-- rules:mcp -->
 | ID | Trigger | Why it matters |
 |---|---|---|
 | <a id="mcp-001"></a>MCP-001 [high] | `http://` or `ws://` URL to a non-loopback host | Credentials and tool results in clear text |
@@ -49,15 +54,19 @@ The rule ids are shared with the `agent-config-audit` skill in [agent-security-s
 | <a id="mcp-006"></a>MCP-006 [low] | `type: sse` | Deprecated transport |
 | <a id="mcp-007"></a>MCP-007 [high] | Filesystem server rooted at `/`, `~` or the home directory | Whole-disk access for the model |
 | <a id="mcp-008"></a>MCP-008 [medium] | Remote server addressed by raw IP | No name to pin, no certificate identity |
+<!-- /rules:mcp -->
 
 ## Secrets (every scanned file)
 
+<!-- rules:secrets -->
 | ID | Trigger |
 |---|---|
 | <a id="sec-001"></a>SEC-001 [critical, high] | OpenAI, Anthropic, GitHub, GitLab, AWS, Slack, Google, Stripe, npm, Hugging Face and credential broker key formats; private key blocks; JWTs; generic `api_key = "<high-entropy>"` assignments. Placeholders (`xxxx`, `your-`, `<...>`, `EXAMPLE`) are skipped. Evidence is redacted. |
+<!-- /rules:secrets -->
 
 ## Instruction files (CLAUDE.md, AGENTS.md, .cursorrules, .mdc, SKILL.md, commands, agents, copilot-instructions)
 
+<!-- rules:injection -->
 | ID | Trigger |
 |---|---|
 | <a id="inj-001"></a>INJ-001 [high] | "ignore previous instructions", "you are now", "new instructions:", "developer mode" |
@@ -69,11 +78,15 @@ The rule ids are shared with the `agent-config-audit` skill in [agent-security-s
 | <a id="inj-007"></a>INJ-007 [medium] | Long high-entropy base64 blob |
 | <a id="inj-008"></a>INJ-008 [high] | "--dangerously-skip-permissions", "disable hooks", "approve everything", `rm -rf ~`, `chmod 777`, force-push to main |
 | <a id="inj-009"></a>INJ-009 [high] | "cat ~/.ssh/...", "read .aws/credentials", "/etc/shadow" |
+<!-- /rules:injection -->
 
 Phrases preceded by a negation ("never send the API keys", "do not paste tokens") are not reported, so security guidance in an instruction file does not trigger the injection rules.
 
+Files imported with `@path` from `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` and `.claude/rules/` are scanned with the same rules, the way Claude Code expands them ([memory](https://code.claude.com/docs/en/memory#import-additional-files)): relative to the importing file, up to four hops, not inside code spans, fenced code blocks or quotes, each file once. Findings name the imported file and its line. Imports that resolve outside the audited root are read only with `--include-home`.
+
 ## Skills, commands, agents, plugins, files
 
+<!-- rules:other -->
 | ID | Trigger |
 |---|---|
 | <a id="skill-001"></a>SKILL-001 [medium, low] | `allowed-tools` grants unrestricted `Bash` or `Write`/`Edit` |
@@ -82,6 +95,7 @@ Phrases preceded by a negation ("never send the API keys", "do not paste tokens"
 | <a id="plugin-002"></a>PLUGIN-002 [medium] | `plugin.json` name starts with a reserved prefix (`claude-`, `anthropic-`, `anthropics-`, `cc-plugin-`), or a component path (`skills`, `commands`, `agents`, `hooks`, `mcpServers`, `lspServers`, `outputStyles`, `workflows`) is absolute or leaves the plugin directory |
 | <a id="file-001"></a>FILE-001 [medium] | Config file is world-writable |
 | <a id="cfg-001"></a>CFG-001 [low] | JSON config does not parse (silently ignored by hosts) |
+<!-- /rules:other -->
 
 ## Files scanned
 

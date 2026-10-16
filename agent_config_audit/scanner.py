@@ -26,10 +26,12 @@ from .patterns import (
     HOOK_EVENTS,
     HTML_COMMENT_RE,
     IMPERATIVE_RE,
+    IMPORT_RE,
     INJECTION_PATTERNS,
     INSTRUCTION_NAMES,
     INSTRUCTION_SUFFIXES,
     MAX_FILE_BYTES,
+    MAX_IMPORT_DEPTH,
     MEDIUM_RISK_PROGRAMS,
     NEGATION_RE,
     NETWORK_TOOL_RE,
@@ -67,6 +69,7 @@ class Auditor:
         self.errors: list[str] = []
         self._seen: set = set()
         self._plugin_roots: list[Path] | None = None
+        self._scanned_paths: set[Path] = set()
 
     # ------------------------------------------------------------------ helpers
     def rel(self, path: Path) -> str:
@@ -143,7 +146,9 @@ class Auditor:
 
     # ------------------------------------------------------------------ dispatch
     def run(self) -> None:
-        for path in self.targets():
+        targets = self.targets()
+        self._scanned_paths = {p.resolve() for p in targets}
+        for path in targets:
             self.scanned.append(self.rel(path))
             self.check_mode(path)
             text = self.read(path)
@@ -157,6 +162,8 @@ class Auditor:
                 self.scan_toml(path, text)
             elif path.suffix in INSTRUCTION_SUFFIXES or name in INSTRUCTION_NAMES or "rules" in path.parts or "instructions" in path.parts:
                 self.scan_instructions(path, text)
+                if self.follows_imports(path):
+                    self.scan_imports(path, text, depth=1)
                 if name == "SKILL.md" or "commands" in path.parts or "agents" in path.parts:
                     self.scan_frontmatter(path, text)
             elif "hooks" in path.parts:
@@ -722,6 +729,53 @@ class Auditor:
             self.add("MCP-001", "high", "mcp", "MCP server configured over plain HTTP", path, text.count("\n", 0, m.start()) + 1, m.group(2), "Use https://.")
 
     # instruction files ----------------------------------------------------------
+    def follows_imports(self, path: Path) -> bool:
+        """CLAUDE.md, CLAUDE.local.md, AGENTS.md and rule files expand @path imports (https://code.claude.com/docs/en/memory)."""
+        return path.name in {"CLAUDE.md", "CLAUDE.local.md", "AGENTS.md"} or "/.claude/rules/" in f"/{self.rel(path)}"
+
+    @staticmethod
+    def import_paths(text: str) -> list[str]:
+        """The @path imports Claude Code would expand: not inside fenced code blocks or code spans, not quoted,
+        with backslash-escaped spaces kept in the path."""
+        text = re.sub(r"(?ms)^[ \t]*(```|~~~).*?^[ \t]*\1[^\n]*$", "", text)
+        text = re.sub(r"`+[^`\n]*`+", "", text)
+        found = []
+        for m in IMPORT_RE.finditer(text):
+            raw = m.group(1).replace("\\ ", " ")
+            found.append(raw)
+        return found
+
+    def scan_imports(self, path: Path, text: str, depth: int) -> None:
+        """Scan the files an instruction file imports, up to MAX_IMPORT_DEPTH hops, each file once."""
+        if depth > MAX_IMPORT_DEPTH:
+            return
+        for raw in self.import_paths(text):
+            candidates = [raw, raw.rstrip(".,;:!?)]}")]
+            for cand in candidates:
+                target = Path(os.path.expanduser(cand))
+                if not target.is_absolute():
+                    target = path.parent / target
+                if target.is_file():
+                    break
+            else:
+                continue
+            resolved = target.resolve()
+            if resolved in self._scanned_paths:
+                continue
+            inside = resolved == self.root or self.root in resolved.parents
+            if not inside and not self.include_home:
+                continue
+            if inside and self.config.path_excluded(self.rel(resolved)):
+                continue
+            self._scanned_paths.add(resolved)
+            body = self.read(resolved)
+            if body is None:
+                continue
+            self.scanned.append(self.rel(resolved))
+            self.scan_secrets(resolved, body)
+            self.scan_instructions(resolved, body)
+            self.scan_imports(resolved, body, depth + 1)
+
     def strips_html_comments(self, path: Path) -> bool:
         """Claude Code removes block-level HTML comments from CLAUDE.md files and rules before loading them
         (https://code.claude.com/docs/en/memory)."""

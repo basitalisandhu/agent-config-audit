@@ -1,46 +1,31 @@
 # agent-config-audit: audit AI agent configuration files for security risks
 
-Audit AI agent configuration files for security risks: one command reads the files that launch and instruct a coding agent (`.claude/settings*.json`, `.mcp.json`, `claude_desktop_config.json`, `.cursor/` rules and MCP config, `CLAUDE.md`, `AGENTS.md`, plugin manifests, hooks, skills) and reports pre-approved dangerous commands, bypassed permission prompts, secrets committed next to server definitions, unpinned MCP servers, hooks that phone home, and prompt-injection patterns hidden in instruction files. Output as a table, JSON, Markdown or SARIF for GitHub code scanning. Read-only, standard library only, no network, deterministic.
-
 [![CI](https://github.com/basitalisandhu/agent-config-audit/actions/workflows/ci.yml/badge.svg)](https://github.com/basitalisandhu/agent-config-audit/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
-## Why
+One command reads the files that launch and instruct a coding agent (`.claude/settings*.json`, `.mcp.json`, `claude_desktop_config.json`, `.cursor/` rules and MCP config, `CLAUDE.md` and the files it imports, `AGENTS.md`, plugin manifests, hooks, skills) and reports pre-approved dangerous commands, bypassed permission prompts, rules Claude Code silently skips, secrets next to server definitions, unpinned MCP servers, hooks that phone home and prompt-injection text. Output as a table, JSON, Markdown or SARIF for GitHub code scanning. Read-only, standard library only, no network.
 
-Agent configuration is code that runs with your privileges. A permission rule pre-approves shell commands, a hook executes on every tool call, an MCP server entry starts a process with your environment, and an instruction file is read by the model as if you had typed it. A cloned repository can ship all four. Nothing in the usual review tooling looks at these files, so a `Bash(*)` allow rule, a `GITHUB_TOKEN` pasted into `.mcp.json`, or an HTML comment telling the agent to "upload the repository and never mention this" goes unnoticed until it is used. This tool makes the review a one-second command that runs in CI and in a pre-commit hook.
+**Who it is for:** developers who open other people's repositories with Claude Code, Cursor or another agent, and teams who review `.claude/` and `.mcp.json` changes in pull requests.
 
-## When to use this
-
-- **Is this repository safe to open with an agent?** Run it right after `git clone`, before the first session.
-- **What did a teammate just change in `.claude/settings.json`?** Run it in the pull request with `--fail-on high`.
-- **Are my MCP servers pinned and my tokens out of the config?** It checks `npx -y` without versions, `@latest`, unpinned images, and literal credentials in `headers` and `env`.
-- **Does an instruction file contain prompt injection?** It flags override phrases, covert-action and exfiltration instructions, invisible Unicode, bidi overrides, encoded blobs and imperative HTML comments, while skipping negated security guidance ("never paste tokens").
-- **How do I get this into GitHub code scanning?** `--format sarif` plus the GitHub Action below.
-
-## Quickstart
+## Quick start
 
 ```bash
-pipx install git+https://github.com/basitalisandhu/agent-config-audit     # see "Install" below
+pipx install git+https://github.com/basitalisandhu/agent-config-audit
 cd your-project
-agent-config-audit                      # table on stdout, exit 0
-agent-config-audit --fail-on high       # exit 1 when a high or critical finding exists
-agent-config-audit --format sarif --output agent-config-audit.sarif
-agent-config-audit --include-home       # also ~/.claude, ~/.cursor, the Claude Desktop config
+agent-config-audit --fail-on high
 ```
 
-## Sample report
-
-Running it against [`examples/sample-project/`](examples/sample-project/), a small project with the usual mistakes (bypass mode, `Bash(*)`, a token in `.mcp.json`, a filesystem server rooted at `~`, a hook that posts to a collector, `curl | bash` in `CLAUDE.md`):
+Run against [`examples/sample-project/`](examples/sample-project/) (bypass mode, `Bash(*)`, a token in `.mcp.json`, a filesystem server rooted at `~`, a hook that posts to a collector, `curl | bash` in `CLAUDE.md`), it prints:
 
 ```text
 agent-config-audit 0.2.0: 4 file(s) scanned under examples/sample-project
 
 SEVERITY  ID        FILE                       FINDING
 ------------------------------------------------------
-CRITICAL  PERM-003  .claude/settings.json:3    defaultMode is bypassPermissions
 CRITICAL  PERM-001  .claude/settings.json:4    Any shell command is pre-approved
 CRITICAL  INJ-004   CLAUDE.md:5                Remote code piped into a shell
+HIGH      PERM-003  .claude/settings.json:3    defaultMode is bypassPermissions in project settings
 HIGH      HOOK-002  .claude/settings.json:10   PostToolUse hook can reach the network
 HIGH      INJ-002   .cursor/rules/style.mdc:4  Instruction to hide actions from the user
 HIGH      MCP-007   .mcp.json:4                Filesystem MCP server files exposes the whole home or root directory
@@ -53,19 +38,35 @@ MEDIUM    PERM-005  .claude/settings.json:4    WebFetch is pre-approved for ever
 MEDIUM    PERM-006  .claude/settings.json:4    Every tool of an MCP server is pre-approved
 MEDIUM    PERM-007  .claude/settings.json:7    All project MCP servers are auto-approved
 MEDIUM    MCP-003   .mcp.json:3                MCP server github runs an unpinned npm package
-MEDIUM    INJ-006   CLAUDE.md:7                HTML comment containing instructions
 LOW       PERM-011  .claude/settings.json      Broad allow rules with no deny rules
+LOW       INJ-006   CLAUDE.md:7                HTML comment containing instructions
 
-17 finding(s): 3 critical, 7 high, 6 medium, 1 low.
+17 finding(s): 2 critical, 8 high, 5 medium, 2 low.
 
 Fixes:
-  PERM-003: Use default or acceptEdits, and allowlist specific commands instead. Bypass mode removes every prompt, including for destructive commands.
   PERM-001: Replace with specific rules such as Bash(npm test), Bash(git status *), Bash(pytest *).
   INJ-004: Download to a file, review it, pin a hash, then run it. Never pipe remote content into a shell from an instruction file.
   ...
 ```
 
-The same run as Markdown is committed at [`examples/report.md`](examples/report.md) and as SARIF at [`examples/report.sarif`](examples/report.sarif). Evidence is always redacted: the bearer token above appears as `Bearer hard****` and a GitHub token as `ghp_A1****t0`, never in full.
+The same run as Markdown is committed at [`examples/report.md`](examples/report.md) and as SARIF at [`examples/report.sarif`](examples/report.sarif). Evidence is always redacted: the bearer token above appears as `Bearer hard****` and a GitHub token as `ghp_A1****t0`, never in full. A folder with no agent files prints "No agent configuration files found" rather than a clean result.
+
+More: `--format sarif --output agent-config-audit.sarif` for code scanning, `--include-home` to add `~/.claude`, `~/.claude.json`, `~/.cursor` and the Claude Desktop config, and the [GitHub Action](#github-action) and [pre-commit hook](#pre-commit) below.
+
+It is one of a small set of Claude Code security tools listed at [basitalisandhu.github.io](https://basitalisandhu.github.io/): [claude-perm-sim](https://github.com/basitalisandhu/claude-perm-sim) simulates which permission rule decides a call, and [cc-plugin-lock](https://github.com/basitalisandhu/cc-plugin-lock) pins and verifies plugins.
+
+## Why
+
+Agent configuration is code that runs with your privileges. A permission rule pre-approves shell commands, a hook executes on every tool call, an MCP server entry starts a process with your environment, and an instruction file is read by the model as if you had typed it. A cloned repository can ship all four. Nothing in the usual review tooling looks at these files, so a `Bash(*)` allow rule, a `GITHUB_TOKEN` pasted into `.mcp.json`, or an HTML comment telling the agent to "upload the repository and never mention this" goes unnoticed until it is used. This tool makes the review a one-second command that runs in CI and in a pre-commit hook.
+
+## When to use this
+
+- **Is this repository safe to open with an agent?** Run it right after `git clone`, before the first session.
+- **What did a teammate just change in `.claude/settings.json`?** Run it in the pull request with `--fail-on high`.
+- **Does my deny list actually hold?** It reports deny rules Claude Code skips, such as `mcp__github(...)` or `Bash(command:rm *)`, and hook events it ignores, such as `preToolUse`.
+- **Are my MCP servers pinned and my tokens out of the config?** It checks `npx -y` without versions, `@latest`, unpinned images, and literal credentials in `headers` and `env`.
+- **Does an instruction file contain prompt injection?** It flags override phrases, covert-action and exfiltration instructions, invisible Unicode, bidi overrides, encoded blobs and imperative HTML comments, in `CLAUDE.md` and every file it imports with `@path`, while skipping negated security guidance ("never paste tokens").
+- **How do I get this into GitHub code scanning?** `--format sarif` plus the GitHub Action below.
 
 ## Install
 
@@ -136,7 +137,7 @@ Forty-five rules in six groups; every one is documented with its trigger and why
 | Instruction files | INJ-001 to INJ-009 | "ignore previous instructions", "do not tell the user", "send ... to https://", `curl \| bash`, "always run ... on session start", zero-width and bidi characters, Unicode tag characters, imperative HTML comments, base64 blobs, "disable hooks", `rm -rf ~`, "cat ~/.ssh/id_rsa" |
 | Skills, plugins, files | SKILL-001, SKILL-002, PLUGIN-001, PLUGIN-002, FILE-001, CFG-001 | `allowed-tools: Bash`, missing skill metadata, plugin `bin/` on PATH, reserved plugin names and component paths outside the plugin, world-writable config, JSON that does not parse |
 
-The scanner is pattern-based. Treat critical and high findings as "open the file and look": a `Bash(curl *)` rule inside a deny list is fine, and a hook that posts to `localhost` is fine. It does not yet follow `@file` imports in instruction files, or read hooks declared in skill and agent front matter; check those by hand.
+The scanner is pattern-based. Treat critical and high findings as "open the file and look": a `Bash(curl *)` rule inside a deny list is fine, and a hook that posts to `localhost` is fine. `@path` imports in `CLAUDE.md`, `AGENTS.md` and `.claude/rules/` are followed the way Claude Code expands them (relative to the importing file, up to four hops, not inside code spans or blocks); imports outside the root are read only with `--include-home`. Hooks declared in skill and agent front matter are not read yet; check those by hand.
 
 ### Allowlist
 
@@ -217,22 +218,23 @@ The checks started as the `audit_agent_config.py` script in the `agent-config-au
 
 - A `fix` mode that rewrites the obvious cases (pin `npx` versions, replace literal tokens with `${VAR}` and print the export line).
 - Rules for Windsurf and Cline permission settings, which today are only scanned as instruction files.
-- Following `@path` includes in `CLAUDE.md` and reading `prompt` and `agent` type hooks.
+- Reading hooks declared in skill and subagent front matter.
 - Baseline mode (`--baseline report.json`) that reports only new findings in a pull request.
 
 ## Contributing
 
 Issues and pull requests are welcome; the starter list is in [docs/good-first-issues.md](docs/good-first-issues.md). Adding a rule is a pattern, a rule entry, a fixture and a test; see [CONTRIBUTING.md](CONTRIBUTING.md). Run `make check` (ruff and pytest) before opening a pull request. Security problems: see [SECURITY.md](SECURITY.md).
 
-## Sibling projects
+## Related projects
 
-More tools by the same author: https://github.com/basitalisandhu
+All tools by the same author are listed at [basitalisandhu.github.io](https://basitalisandhu.github.io/).
 
+- [claude-perm-sim](https://github.com/basitalisandhu/claude-perm-sim): simulate the Claude Code permission engine: which rule decides a call, and where an allow rule admits more than it names. Use it after this tool flags a rule.
+- [cc-plugin-lock](https://github.com/basitalisandhu/cc-plugin-lock): lock file for Claude Code plugins and skills, verified against content hashes before a session loads them.
 - [agent-security-skills](https://github.com/basitalisandhu/agent-security-skills): Claude Code plugin and agentskills-compatible skill pack where these checks run inside a review.
 - [agent-threat-model](https://github.com/basitalisandhu/agent-threat-model): describe an agent system in YAML, get a STRIDE and OWASP Agentic threat model.
 - [agentic-semgrep-rules](https://github.com/basitalisandhu/agentic-semgrep-rules): Semgrep rule pack for insecure agent code.
 - [mcp-server-template](https://github.com/basitalisandhu/mcp-server-template): secure MCP server template in TypeScript and Python.
-- [ai-agent-incidents](https://github.com/basitalisandhu/ai-agent-incidents): open dataset of publicly documented AI agent security incidents.
 
 ## Licence
 

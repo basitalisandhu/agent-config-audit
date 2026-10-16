@@ -31,6 +31,10 @@ HOME_FILES = [
     "~/.config/Claude/claude_desktop_config.json", "~/AppData/Roaming/Claude/claude_desktop_config.json",
     "~/.continue/config.json", "~/.continue/config.yaml",
 ]
+# @path imports in CLAUDE.md and AGENTS.md: relative to the importing file, at most four hops
+# (https://code.claude.com/docs/en/memory#import-additional-files). Not after a word character, so e-mail addresses do not count.
+IMPORT_RE = re.compile(r"(?<![\w@`\"'])@((?:~|\.{1,2})?/?(?:[^\s\\`\"'<>]|\\ )+)")
+MAX_IMPORT_DEPTH = 4
 INSTRUCTION_SUFFIXES = {".md", ".mdc", ".txt"}
 INSTRUCTION_NAMES = {".cursorrules", ".windsurfrules", ".clinerules"}
 
