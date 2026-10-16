@@ -17,11 +17,11 @@
         "text": "Any shell command pre-approved"
        },
        "fullDescription": {
-        "text": "Bash or Bash(*) in permissions.allow lets every shell command run without a prompt."
+        "text": "Bash, Bash(*), Bash(:*) or the PowerShell equivalents in permissions.allow let every shell command run without a prompt."
        },
        "helpUri": "https://github.com/basitalisandhu/agent-config-audit/blob/main/docs/checks.md#perm-001",
        "help": {
-        "text": "Bash or Bash(*) in permissions.allow lets every shell command run without a prompt."
+        "text": "Bash, Bash(*), Bash(:*) or the PowerShell equivalents in permissions.allow let every shell command run without a prompt."
        },
        "defaultConfiguration": {
         "level": "error"
@@ -43,11 +43,11 @@
         "text": "Risky program pre-approved"
        },
        "fullDescription": {
-        "text": "A program such as rm, sudo, curl, bash or a package manager is pre-approved with a wildcard, so one injected instruction becomes an executed command."
+        "text": "A program such as rm, sudo, curl, bash or a package manager, or an environment runner such as npx, docker exec or devbox run, is pre-approved with a wildcard, so one injected instruction becomes an executed command."
        },
        "helpUri": "https://github.com/basitalisandhu/agent-config-audit/blob/main/docs/checks.md#perm-002",
        "help": {
-        "text": "A program such as rm, sudo, curl, bash or a package manager is pre-approved with a wildcard, so one injected instruction becomes an executed command."
+        "text": "A program such as rm, sudo, curl, bash or a package manager, or an environment runner such as npx, docker exec or devbox run, is pre-approved with a wildcard, so one injected instruction becomes an executed command."
        },
        "defaultConfiguration": {
         "level": "error"
@@ -69,11 +69,11 @@
         "text": "Permission prompts bypassed"
        },
        "fullDescription": {
-        "text": "defaultMode bypassPermissions, dontAsk or auto, permissionMode in agent front matter, or a Codex approval policy of never removes the human from the loop."
+        "text": "defaultMode bypassPermissions or auto, permissionMode bypassPermissions or auto in agent front matter, or a Codex approval policy of never removes the human from the loop. Project settings are reported lower because current Claude Code ignores both modes there."
        },
        "helpUri": "https://github.com/basitalisandhu/agent-config-audit/blob/main/docs/checks.md#perm-003",
        "help": {
-        "text": "defaultMode bypassPermissions, dontAsk or auto, permissionMode in agent front matter, or a Codex approval policy of never removes the human from the loop."
+        "text": "defaultMode bypassPermissions or auto, permissionMode bypassPermissions or auto in agent front matter, or a Codex approval policy of never removes the human from the loop. Project settings are reported lower because current Claude Code ignores both modes there."
        },
        "defaultConfiguration": {
         "level": "error"
@@ -308,6 +308,32 @@
        "helpUri": "https://github.com/basitalisandhu/agent-config-audit/blob/main/docs/checks.md#perm-012",
        "help": {
         "text": "A Read allow rule covers environment files, credential stores or private-key paths."
+       },
+       "defaultConfiguration": {
+        "level": "warning"
+       },
+       "properties": {
+        "category": "permissions",
+        "security-severity": "5.0",
+        "tags": [
+         "security",
+         "agent-configuration",
+         "permissions"
+        ]
+       }
+      },
+      {
+       "id": "PERM-013",
+       "name": "PermissionruleClaudeCodeignores",
+       "shortDescription": {
+        "text": "Permission rule Claude Code ignores"
+       },
+       "fullDescription": {
+        "text": "A deny or ask rule in a shape Claude Code skips (an mcp__ rule with parentheses, a parameter rule on a primary field such as Bash(command:...), :* in the middle of a pattern), so the restriction does not hold; allow rules of these shapes and unanchored allow globs such as * or mcp__* do nothing."
+       },
+       "helpUri": "https://github.com/basitalisandhu/agent-config-audit/blob/main/docs/checks.md#perm-013",
+       "help": {
+        "text": "A deny or ask rule in a shape Claude Code skips (an mcp__ rule with parentheses, a parameter rule on a primary field such as Bash(command:...), :* in the middle of a pattern), so the restriction does not hold; allow rules of these shapes and unanchored allow globs such as * or mcp__* do nothing."
        },
        "defaultConfiguration": {
         "level": "warning"
@@ -1112,35 +1138,6 @@
    ],
    "results": [
     {
-     "ruleId": "PERM-003",
-     "ruleIndex": 2,
-     "level": "error",
-     "message": {
-      "text": "defaultMode is bypassPermissions. Use default or acceptEdits, and allowlist specific commands instead. Bypass mode removes every prompt, including for destructive commands."
-     },
-     "locations": [
-      {
-       "physicalLocation": {
-        "artifactLocation": {
-         "uri": ".claude/settings.json",
-         "uriBaseId": "%SRCROOT%"
-        },
-        "region": {
-         "startLine": 3
-        }
-       }
-      }
-     ],
-     "partialFingerprints": {
-      "agentConfigAudit/v1": "294932ddd66b0d623b53fbf8a0dbf3967a797e044649648d1d170e3d9f4d5710"
-     },
-     "properties": {
-      "severity": "critical",
-      "category": "permissions",
-      "evidence": "\"defaultMode\": \"bypassPermissions\""
-     }
-    },
-    {
      "ruleId": "PERM-001",
      "ruleIndex": 0,
      "level": "error",
@@ -1171,7 +1168,7 @@
     },
     {
      "ruleId": "INJ-004",
-     "ruleIndex": 30,
+     "ruleIndex": 31,
      "level": "error",
      "message": {
       "text": "Remote code piped into a shell. Download to a file, review it, pin a hash, then run it. Never pipe remote content into a shell from an instruction file."
@@ -1199,8 +1196,37 @@
      }
     },
     {
+     "ruleId": "PERM-003",
+     "ruleIndex": 2,
+     "level": "error",
+     "message": {
+      "text": "defaultMode is bypassPermissions in project settings. Remove it. Claude Code v2.1.257 and later ignore this value in project and local settings, but older versions and other hosts that read the file apply it and drop every prompt."
+     },
+     "locations": [
+      {
+       "physicalLocation": {
+        "artifactLocation": {
+         "uri": ".claude/settings.json",
+         "uriBaseId": "%SRCROOT%"
+        },
+        "region": {
+         "startLine": 3
+        }
+       }
+      }
+     ],
+     "partialFingerprints": {
+      "agentConfigAudit/v1": "294932ddd66b0d623b53fbf8a0dbf3967a797e044649648d1d170e3d9f4d5710"
+     },
+     "properties": {
+      "severity": "high",
+      "category": "permissions",
+      "evidence": "\"defaultMode\": \"bypassPermissions\""
+     }
+    },
+    {
      "ruleId": "HOOK-002",
-     "ruleIndex": 13,
+     "ruleIndex": 14,
      "level": "error",
      "message": {
       "text": "PostToolUse hook can reach the network. Hooks receive the tool input (commands, paths, prompts). A hook that calls curl, ssh or an external URL can exfiltrate them. Keep hooks local or document exactly what is sent where."
@@ -1229,7 +1255,7 @@
     },
     {
      "ruleId": "INJ-002",
-     "ruleIndex": 28,
+     "ruleIndex": 29,
      "level": "error",
      "message": {
       "text": "Instruction to hide actions from the user. Remove it. Agents must not be told to act without the user's knowledge."
@@ -1258,7 +1284,7 @@
     },
     {
      "ruleId": "MCP-007",
-     "ruleIndex": 24,
+     "ruleIndex": 25,
      "level": "error",
      "message": {
       "text": "Filesystem MCP server files exposes the whole home or root directory. Point it at the specific project directories the agent needs."
@@ -1287,7 +1313,7 @@
     },
     {
      "ruleId": "MCP-001",
-     "ruleIndex": 18,
+     "ruleIndex": 19,
      "level": "error",
      "message": {
       "text": "MCP server remote uses plain HTTP. Use https:// or wss://. Tokens in headers and every tool result travel in clear text otherwise."
@@ -1316,7 +1342,7 @@
     },
     {
      "ruleId": "MCP-002",
-     "ruleIndex": 19,
+     "ruleIndex": 20,
      "level": "error",
      "message": {
       "text": "Literal credential in headers.Authorization of MCP server remote. Use ${VAR} substitution instead of a literal token."
@@ -1345,7 +1371,7 @@
     },
     {
      "ruleId": "INJ-004",
-     "ruleIndex": 30,
+     "ruleIndex": 31,
      "level": "error",
      "message": {
       "text": "Instruction to auto-run commands. Instruction files that make the agent run commands on every session are a persistence mechanism; move the behaviour into a reviewed hook or remove it."
@@ -1374,7 +1400,7 @@
     },
     {
      "ruleId": "INJ-004",
-     "ruleIndex": 30,
+     "ruleIndex": 31,
      "level": "error",
      "message": {
       "text": "Instruction to auto-run commands. Instruction files that make the agent run commands on every session are a persistence mechanism; move the behaviour into a reviewed hook or remove it."
@@ -1519,7 +1545,7 @@
     },
     {
      "ruleId": "MCP-003",
-     "ruleIndex": 20,
+     "ruleIndex": 21,
      "level": "warning",
      "message": {
       "text": "MCP server github runs an unpinned npm package. Pin a version (@modelcontextprotocol/server-github@x.y.z) or install the package and point command at the installed binary; `npx -y` fetches whatever is latest on every start."
@@ -1548,7 +1574,7 @@
     },
     {
      "ruleId": "INJ-006",
-     "ruleIndex": 32,
+     "ruleIndex": 33,
      "level": "warning",
      "message": {
       "text": "HTML comment containing instructions. Rendered Markdown hides comments from readers but not from the model. Move the text into the open or delete it."

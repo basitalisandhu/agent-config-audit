@@ -43,6 +43,15 @@ MEDIUM_RISK_PROGRAMS = {"git", "npm", "npx", "pnpm", "yarn", "bun", "pip", "pip3
 DANGEROUS_FLAGS = {"--dangerously-skip-permissions", "--allow-all", "--yolo", "--no-sandbox", "--unsafe", "--trust-all",
                    "--allow-all-tools", "--disable-sandbox", "--full-auto", "--approval-mode=yolo", "--permission-mode=bypassPermissions",
                    "-y", "--yes", "--dangerously-allow-browser"}
+# Claude Code strips these before matching a Bash rule (https://code.claude.com/docs/en/permissions#process-wrappers).
+SHELL_WRAPPERS = {"timeout", "time", "nice", "nohup", "stdbuf", "command", "builtin", "noglob"}
+# Environment runners execute whatever follows them, so "Bash(devbox run *)" also approves "devbox run rm -rf .".
+RUNNER_PREFIXES = [("direnv", "exec"), ("devbox", "run"), ("mise", "exec"), ("docker", "exec"), ("podman", "exec"),
+                   ("kubectl", "exec"), ("npx",), ("bunx",), ("pnpm", "exec"), ("pnpm", "dlx"), ("yarn", "dlx"),
+                   ("uv", "run"), ("poetry", "run"), ("pipenv", "run"), ("xargs",), ("env",), ("sudo",), ("doas",)]
+# Parameter rules on these fields are ignored by Claude Code (https://code.claude.com/docs/en/permissions#match-by-input-parameter).
+PRIMARY_FIELDS = {"Bash": "command", "PowerShell": "command", "Read": "file_path", "Edit": "file_path", "Write": "file_path",
+                  "Grep": "path", "Glob": "path", "NotebookEdit": "notebook_path", "WebFetch": "url"}
 SECRET_KEY_RE = re.compile(r"(?i)(api[_-]?key|secret|token|passw(or)?d|passwd|credential|private[_-]?key|auth|bearer|cookie|session)")
 ENV_REF_RE = re.compile(r"^\$\{?[A-Za-z_][A-Za-z0-9_]*(:-[^}]*)?\}?$|^\$\{user_config\.[A-Za-z0-9_]+\}$")
 PLACEHOLDER_RE = re.compile(r"(?i)(xxxx|your[_-]|example|placeholder|redacted|changeme|change-me|<[^>]+>|\.\.\.|\*\*\*|dummy|sample|test-?key|fake|insert|replace|todo|tbd|\$\{)")

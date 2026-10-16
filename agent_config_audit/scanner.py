@@ -32,9 +32,12 @@ from .patterns import (
     NETWORK_TOOL_RE,
     PIPE_TO_SHELL_RE,
     PLACEHOLDER_RE,
+    PRIMARY_FIELDS,
     PROJECT_GLOBS,
+    RUNNER_PREFIXES,
     SECRET_KEY_RE,
     SECRET_PATTERNS,
+    SHELL_WRAPPERS,
     TAG_CHARS_RE,
     ZERO_WIDTH_RE,
 )
@@ -202,6 +205,9 @@ class Auditor:
         if path.name == "plugin.json" and isinstance(data.get("hooks"), dict):
             self.scan_hooks(path, text, data["hooks"], plugin_root=self.plugin_root_for(path))
 
+    def in_plugin(self, path: Path) -> bool:
+        return self.plugin_root_for(path) is not None or "plugins" in Path(self.rel(path)).parts
+
     def plugin_root_for(self, path: Path) -> Path | None:
         for parent in [path.parent, *path.parents]:
             if (parent / ".claude-plugin" / "plugin.json").exists():
@@ -218,15 +224,36 @@ class Auditor:
         return {}
 
     # settings.json ------------------------------------------------------------
+    def is_project_settings(self, path: Path) -> bool:
+        """True for .claude/settings.json and .claude/settings.local.json inside the audited root."""
+        try:
+            rel = path.resolve().relative_to(self.root).as_posix()
+        except ValueError:
+            return False
+        return rel.endswith((".claude/settings.json", ".claude/settings.local.json"))
+
     def scan_settings(self, path: Path, text: str, data: dict) -> None:
-        perms = data.get("permissions") or {}
+        perms = data.get("permissions")
+        if not isinstance(perms, dict):
+            perms = {}
         mode = perms.get("defaultMode") or data.get("defaultMode")
+        project = self.is_project_settings(path)
+        # https://code.claude.com/docs/en/settings: defaultMode auto and bypassPermissions do not take
+        # effect from project or local settings (bypassPermissions did before Claude Code v2.1.257).
         if mode == "bypassPermissions":
-            self.add("PERM-003", "critical", "permissions", "defaultMode is bypassPermissions", path, self.line_of(text, "bypassPermissions"),
-                     '"defaultMode": "bypassPermissions"', "Use default or acceptEdits, and allowlist specific commands instead. Bypass mode removes every prompt, including for destructive commands.")
-        elif mode in {"dontAsk", "auto"}:
-            self.add("PERM-003", "medium", "permissions", f"defaultMode is {mode}", path, self.line_of(text, mode), f'"defaultMode": "{mode}"',
-                     "Confirm this is intended; commands outside the allow list run without a prompt in this mode.")
+            if project:
+                self.add("PERM-003", "high", "permissions", "defaultMode is bypassPermissions in project settings", path, self.line_of(text, "bypassPermissions"),
+                         '"defaultMode": "bypassPermissions"', "Remove it. Claude Code v2.1.257 and later ignore this value in project and local settings, but older versions and other hosts that read the file apply it and drop every prompt.")
+            else:
+                self.add("PERM-003", "critical", "permissions", "defaultMode is bypassPermissions", path, self.line_of(text, "bypassPermissions"),
+                         '"defaultMode": "bypassPermissions"', "Use default (Manual) or acceptEdits, and allowlist specific commands instead. Bypass mode removes every prompt, including for destructive commands.")
+        elif mode == "auto":
+            if project:
+                self.add("PERM-003", "low", "permissions", "defaultMode auto in project settings has no effect", path, self.line_of(text, '"auto"'), '"defaultMode": "auto"',
+                         "Remove it. Claude Code applies auto mode only from user or managed settings or --permission-mode, so this line only signals intent.")
+            else:
+                self.add("PERM-003", "medium", "permissions", "defaultMode is auto", path, self.line_of(text, '"auto"'), '"defaultMode": "auto"',
+                         "Confirm this is intended: in auto mode a background classifier, not you, approves shell commands and network requests.")
         if data.get("skipDangerousModePermissionPrompt") is True:
             self.add("PERM-003", "high", "permissions", "Dangerous-mode prompt is skipped", path, self.line_of(text, "skipDangerousModePermissionPrompt"),
                      "skipDangerousModePermissionPrompt: true", "Remove it.")
@@ -236,19 +263,62 @@ class Auditor:
         if data.get("disableAllHooks") is True:
             self.add("PERM-008", "medium", "permissions", "All hooks are disabled", path, self.line_of(text, "disableAllHooks"), '"disableAllHooks": true',
                      "Re-enable hooks; guard hooks such as secret-exposure blocking do not run while this is set.")
-        for rule in perms.get("allow") or []:
-            if not isinstance(rule, str):
-                continue
+        lists = {k: [r for r in perms.get(k) or [] if isinstance(r, str)] if isinstance(perms.get(k), list) else [] for k in ("allow", "deny", "ask")}
+        for rule in lists["allow"]:
             self.scan_allow_rule(path, text, rule)
-        for d in perms.get("additionalDirectories") or []:
+        for kind, rules in lists.items():
+            for rule in rules:
+                self.check_ignored_rule(path, text, kind, rule)
+        dirs = perms.get("additionalDirectories")
+        for d in dirs if isinstance(dirs, list) else []:
             if isinstance(d, str) and (d.rstrip("/") or "/") in {"/", "~", "$HOME", os.path.expanduser("~"), "/home", "/Users", "C:\\", "C:"}:
                 self.add("PERM-010", "medium", "permissions", "additionalDirectories grants the whole home or root directory", path, self.line_of(text, d), d,
                          "Grant the specific project directories you need.")
-        allow = [r for r in perms.get("allow") or [] if isinstance(r, str)]
-        deny = perms.get("deny") or []
-        if any(r.split("(")[0] in {"Bash", "Write", "Edit", "MultiEdit"} and ("(" not in r or r.endswith("(*)")) for r in allow) and not deny:
+        broad = any(r.split("(")[0] in {"Bash", "PowerShell", "Write", "Edit", "MultiEdit"} and ("(" not in r or r.endswith(("(*)", "(:*)"))) for r in lists["allow"])
+        if broad and not lists["deny"]:
             self.add("PERM-011", "low", "permissions", "Broad allow rules with no deny rules", path, None, "permissions.deny is empty",
                      "Add deny rules for the commands and paths that must never run (for example Bash(rm -rf *), Read(./.env), Bash(curl *)).")
+
+    def check_ignored_rule(self, path: Path, text: str, kind: str, rule: str) -> None:
+        """PERM-013: rule shapes Claude Code skips or never matches (https://code.claude.com/docs/en/permissions)."""
+        tool, paren, spec = rule.partition("(")
+        tool = tool.strip()
+        spec = spec[:-1] if spec.endswith(")") else spec
+        reason = None
+        if not paren and "*" in tool and kind == "allow" and not re.match(r"^mcp__[^*]+__", tool):
+            reason = "Claude Code skips allow rules whose tool name is a glob not anchored to one MCP server (such as *, B* or mcp__*), so it approves nothing"
+        elif paren and tool.startswith("mcp__"):
+            reason = "Claude Code skips any mcp__ rule that has parentheses when it loads a settings file"
+        elif paren and tool in PRIMARY_FIELDS and re.match(rf"^\s*{PRIMARY_FIELDS[tool]}\s*:", spec):
+            value = re.sub(r"^\s*[a-z_]+\s*:\s*", "", spec)
+            reason = f"Claude Code ignores parameter rules on the primary input field of {tool}; write {tool}({value}) instead"
+        elif paren and tool in {"Bash", "PowerShell"} and ":*" in spec and not spec.rstrip().endswith(":*"):
+            reason = "The :* suffix is only recognised at the end of a pattern; elsewhere the colon is literal, so the rule matches almost nothing"
+        if reason is None:
+            return
+        if kind == "allow":
+            self.add("PERM-013", "info", "permissions", "Allow rule has no effect in Claude Code", path, self.line_of(text, rule), rule, f"Remove or rewrite it. {reason}.")
+        else:
+            self.add("PERM-013", "medium", "permissions", f"{kind.capitalize()} rule is not applied by Claude Code", path, self.line_of(text, rule), rule,
+                     f"Rewrite it so the restriction you meant actually holds. {reason}.")
+
+    @staticmethod
+    def shell_words(spec: str) -> list[str]:
+        """Split a Bash or PowerShell rule specifier into words, with :* read as a trailing ' *' and wrappers removed."""
+        spec = spec.strip()
+        if spec.endswith(":*"):
+            spec = spec[:-2] + " *"
+        words = spec.split()
+        # Claude Code strips these wrappers and safe VAR=value prefixes before matching, so the program is the next word.
+        while words and (words[0] in SHELL_WRAPPERS or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", words[0])):
+            rest = words[1:]
+            if words[0] in {"timeout", "nice", "stdbuf"}:
+                while rest and (rest[0].startswith("-") or re.match(r"^\d+[smhd]?$", rest[0])):
+                    rest = rest[1:]
+            if not rest or rest[0] in {"*", "**"}:
+                break  # "Bash(timeout *)": the wrapper itself is the rule; do not guess what it matches.
+            words = rest
+        return words
 
     def scan_allow_rule(self, path: Path, text: str, rule: str) -> None:
         tool, _, spec = rule.partition("(")
@@ -258,33 +328,46 @@ class Auditor:
         if tool_l == "Read" and re.search(r"(?:^|[/\\])(?:\.env(?![^/\\]*\.(?:example|sample|template)(?:$|[/\\]))[^/\\]*|\.ssh|\.aws|\.netrc|id_rsa|id_ed25519)(?:$|[/\\])|(?:^|[/\\])[^/\\]*\.(?:pem|key)$", spec):
             self.add("PERM-012", "medium", "permissions", "Read allow rule covers a secret-bearing path", path, line, rule,
                      "Remove the pre-approval for credential stores and private keys; allow only the project files needed and retain a prompt for secrets.")
-        if tool_l == "Bash":
-            words = spec.split()
-            if not spec.strip() or spec.strip() in {"*", "**", ":*"}:
+        if tool_l in {"Bash", "PowerShell"}:
+            words = self.shell_words(spec)
+            if not words or (words[0] in {"*", "**"} and len(words) == 1):
                 self.add("PERM-001", "critical", "permissions", "Any shell command is pre-approved", path, line, rule,
-                         "Replace with specific rules such as Bash(npm test), Bash(git status *), Bash(pytest *).")
+                         f"Replace with specific rules such as {tool_l}(npm test), {tool_l}(git status *), {tool_l}(pytest *).")
                 return
-            prog = os.path.basename(words[0]) if words else ""
-            # "rm *", "rm -rf *" and "curl -s *" all pre-approve arbitrary targets: only flags may sit between the program and the wildcard.
-            wildcard_next = len(words) == 1 or (words[-1] in {"*", "**"} and all(w.startswith("-") for w in words[1:-1]))
-            if prog in HIGH_RISK_PROGRAMS and wildcard_next:
+            if words[0] in {"*", "**"}:
+                self.add("PERM-002", "high", "permissions", "Rule starts with a wildcard, so any program matches", path, line, rule,
+                         "Put the program first, for example Bash(node --version). A leading * lets any program run, including bash -c '...'.")
+                return
+            prog = os.path.basename(words[0])
+            glued = prog.endswith("*")
+            prog = prog.rstrip("*")
+            if tool_l == "PowerShell":
+                prog = prog.lower()
+            # "rm *", "rm -rf *", "git * main" and "rm*" all pre-approve arbitrary targets: only flags may sit between the program and the wildcard.
+            star = next((i for i, w in enumerate(words) if i > 0 and w in {"*", "**"}), None)
+            wildcard_next = glued or len(words) == 1 or (star is not None and all(w.startswith("-") for w in words[1:star]))
+            runner = next((" ".join(r) for r in RUNNER_PREFIXES if [w.lower() for w in words[: len(r)]] == list(r) and (len(words) == len(r) or "*" in words[len(r)])), None)
+            if runner and (len(words) > 1 or glued):
+                self.add("PERM-002", "high", "permissions", f"Pre-approved runner executes any command: {runner}", path, line, rule,
+                         f"Write one rule per inner command, for example {tool_l}({runner} npm test). {runner} runs whatever follows it, so {rule} also approves {runner} rm -rf .")
+            elif prog in HIGH_RISK_PROGRAMS and wildcard_next:
                 self.add("PERM-002", "high", "permissions", f"Dangerous program pre-approved with a wildcard: {prog}", path, line, rule,
-                         f"Narrow the rule to the exact invocations you need (for example Bash({prog} --version)), or remove it.")
+                         f"Narrow the rule to the exact invocations you need (for example {tool_l}({prog} --version)), or remove it.")
             elif prog in HIGH_RISK_PROGRAMS:
                 self.add("PERM-002", "low", "permissions", f"Risky program pre-approved with a narrow pattern: {prog}", path, line, rule,
                          "Confirm the pattern cannot be widened with shell tricks (quotes, variables, command substitution).")
             elif prog in MEDIUM_RISK_PROGRAMS and wildcard_next:
                 self.add("PERM-002", "medium", "permissions", f"Broad pre-approval for {prog}", path, line, rule,
-                         f"Prefer subcommand-level rules (for example Bash({prog} status *)) so that publish, push --force or install of arbitrary packages still prompt.")
+                         f"Prefer subcommand-level rules (for example {tool_l}({prog} status *)) so that publish, push --force or install of arbitrary packages still prompt.")
             if any(flag in spec for flag in DANGEROUS_FLAGS if flag not in {"-y", "--yes"}):
                 self.add("PERM-009", "high", "permissions", "Pre-approved command carries a permission-bypass flag", path, line, rule, "Remove the flag from the rule.")
-        elif tool_l in {"Write", "Edit", "MultiEdit", "NotebookEdit"} and (not spec.strip() or spec.strip() in {"*", "**", "**/*"}):
+        elif tool_l in {"Write", "Edit", "MultiEdit", "NotebookEdit"} and (not spec.strip() or spec.strip() in {"*", "**", "**/*", "/**", "//**"}):
             self.add("PERM-004", "medium", "permissions", f"{tool_l} is pre-approved for every path", path, line, rule,
                      "Scope it to the project (for example Write(./src/**)) and deny .claude/, .git/ and dotfiles.")
         elif tool_l in {"WebFetch", "WebSearch"} and (not spec.strip() or spec.strip() in {"*", "domain:*"}):
             self.add("PERM-005", "medium", "permissions", f"{tool_l} is pre-approved for every domain", path, line, rule,
                      "Allow specific domains (WebFetch(domain:docs.example.com)). Unrestricted fetch is a data-exfiltration channel under prompt injection.")
-        elif tool_l.startswith("mcp__") and (tool_l.endswith("*") or tool_l.count("__") == 1) and not spec:
+        elif re.match(r"^mcp__[^*_][^*]*?(__\*)?$", tool_l) and (tool_l.endswith("__*") or tool_l.count("__") == 1) and not spec:
             self.add("PERM-006", "medium", "permissions", "Every tool of an MCP server is pre-approved", path, line, rule,
                      "Allow the individual read-only tools you need; keep write and delete tools behind a prompt.")
 
@@ -528,9 +611,12 @@ class Auditor:
             self.add("SKILL-002", "info", "skill", "SKILL.md frontmatter has no name", path, 1, fm[:40], "Add name: matching the directory.")
         if path.name == "SKILL.md" and not re.search(r"(?m)^description\s*:", fm):
             self.add("SKILL-002", "info", "skill", "SKILL.md frontmatter has no description", path, 1, fm[:40], "Add a description; it is what makes the skill trigger.")
-        pm = re.search(r"(?im)^permissionMode\s*:\s*(bypassPermissions|dontAsk)", fm)
-        if pm:
-            self.add("PERM-003", "high", "permissions", f"Agent file sets permissionMode {pm.group(1)}", path, None, pm.group(0), "Remove it; let the user's settings decide.")
+        pm = re.search(r"(?im)^permissionMode\s*:\s*[\"']?(bypassPermissions|auto)\b", fm)
+        if pm and not self.in_plugin(path):
+            # https://code.claude.com/docs/en/sub-agents: dontAsk only denies; bypassPermissions applies only when the main
+            # session already bypasses (Claude Code v2.1.267 and later); plugin subagents ignore permissionMode.
+            self.add("PERM-003", "medium", "permissions", f"Agent file sets permissionMode {pm.group(1)}", path, text[: text.find(pm.group(0))].count("\n") + 1, pm.group(0).strip(),
+                     "Remove it and let the user's session decide. Older Claude Code versions run this subagent without prompts even when the session prompts.")
 
     # ------------------------------------------------------------------ report
     def report(self) -> dict:

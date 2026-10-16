@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 RULES: dict[str, dict[str, str]] = {
-    "PERM-001": {"name": "Any shell command pre-approved", "category": "permissions", "severity": "critical", "description": "Bash or Bash(*) in permissions.allow lets every shell command run without a prompt."},
-    "PERM-002": {"name": "Risky program pre-approved", "category": "permissions", "severity": "high", "description": "A program such as rm, sudo, curl, bash or a package manager is pre-approved with a wildcard, so one injected instruction becomes an executed command."},
-    "PERM-003": {"name": "Permission prompts bypassed", "category": "permissions", "severity": "critical", "description": "defaultMode bypassPermissions, dontAsk or auto, permissionMode in agent front matter, or a Codex approval policy of never removes the human from the loop."},
+    "PERM-001": {"name": "Any shell command pre-approved", "category": "permissions", "severity": "critical", "description": "Bash, Bash(*), Bash(:*) or the PowerShell equivalents in permissions.allow let every shell command run without a prompt."},
+    "PERM-002": {"name": "Risky program pre-approved", "category": "permissions", "severity": "high", "description": "A program such as rm, sudo, curl, bash or a package manager, or an environment runner such as npx, docker exec or devbox run, is pre-approved with a wildcard, so one injected instruction becomes an executed command."},
+    "PERM-003": {"name": "Permission prompts bypassed", "category": "permissions", "severity": "critical", "description": "defaultMode bypassPermissions or auto, permissionMode bypassPermissions or auto in agent front matter, or a Codex approval policy of never removes the human from the loop. Project settings are reported lower because current Claude Code ignores both modes there."},
     "PERM-004": {"name": "Write or Edit pre-approved for every path", "category": "permissions", "severity": "medium", "description": "The agent can rewrite its own hooks and settings."},
     "PERM-005": {"name": "Web access pre-approved for every domain", "category": "permissions", "severity": "medium", "description": "Unrestricted WebFetch or WebSearch is a data-exfiltration channel under prompt injection."},
     "PERM-006": {"name": "Whole MCP server pre-approved", "category": "permissions", "severity": "medium", "description": "Every tool of the server, including write and delete tools, runs without a prompt."},
@@ -15,6 +15,7 @@ RULES: dict[str, dict[str, str]] = {
     "PERM-010": {"name": "Whole home or root directory granted", "category": "permissions", "severity": "medium", "description": "additionalDirectories includes /, ~ or the home directory."},
     "PERM-011": {"name": "Broad allow rules with no deny rules", "category": "permissions", "severity": "low", "description": "There is no backstop for the obvious disasters."},
     "PERM-012": {"name": "Read allow covers a secret-bearing path", "category": "permissions", "severity": "medium", "description": "A Read allow rule covers environment files, credential stores or private-key paths."},
+    "PERM-013": {"name": "Permission rule Claude Code ignores", "category": "permissions", "severity": "medium", "description": "A deny or ask rule in a shape Claude Code skips (an mcp__ rule with parentheses, a parameter rule on a primary field such as Bash(command:...), :* in the middle of a pattern), so the restriction does not hold; allow rules of these shapes and unanchored allow globs such as * or mcp__* do nothing."},
     "HOOK-001": {"name": "Hook script does not exist", "category": "hooks", "severity": "medium", "description": "The control the hook was meant to add is absent; failure mode depends on the host."},
     "HOOK-002": {"name": "Hook can reach the network", "category": "hooks", "severity": "high", "description": "Hook input contains commands, paths and prompts; a hook that calls curl, ssh or a remote URL can exfiltrate them."},
     "HOOK-003": {"name": "Credential inside a hook command", "category": "hooks", "severity": "critical", "description": "A known credential format sits in a settings file."},

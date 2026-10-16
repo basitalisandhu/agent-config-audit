@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from .conftest import FIXTURES, audit, by_id, ids, write
 
 
@@ -38,6 +40,41 @@ def test_skill_and_agent_frontmatter():
     assert "SKILL-002" in found
     perm = [f for f in by_id(rep, "PERM-003") if f["file"] == ".claude/agents/root.md"]
     assert perm and "bypassPermissions" in perm[0]["title"]
+    assert perm[0]["severity"] == "medium"
+    assert perm[0]["line"] == 4
+
+
+@pytest.mark.parametrize(
+    ("mode", "reported"),
+    [
+        ("bypassPermissions", True),
+        ("auto", True),
+        ("dontAsk", False),
+        ("plan", False),
+        ("manual", False),
+    ],
+)
+def test_agent_permission_mode(tmp_path, mode, reported):
+    # https://code.claude.com/docs/en/sub-agents: dontAsk only denies, plan is read-only.
+    write(
+        tmp_path,
+        ".claude/agents/a.md",
+        f"---\nname: a\ndescription: d\npermissionMode: {mode}\n---\nbody\n",
+    )
+    _, rep = audit(tmp_path)
+    assert ("PERM-003" in ids(rep)) is reported
+
+
+def test_plugin_agent_permission_mode_is_ignored(tmp_path):
+    # Plugin subagents ignore permissionMode, hooks and mcpServers.
+    write(tmp_path, "plugins/p/.claude-plugin/plugin.json", '{"name": "p"}')
+    write(
+        tmp_path,
+        "plugins/p/agents/a.md",
+        "---\nname: a\ndescription: d\npermissionMode: bypassPermissions\n---\nbody\n",
+    )
+    _, rep = audit(tmp_path)
+    assert "PERM-003" not in ids(rep)
 
 
 def test_skill_without_frontmatter_is_info(tmp_path):

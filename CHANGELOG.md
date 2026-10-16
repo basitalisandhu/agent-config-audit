@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- PERM-013 reports permission rules that Claude Code skips or never matches: `mcp__` rules with parentheses, parameter rules on a primary field such as `Bash(command:rm *)`, `:*` in the middle of a pattern, and unanchored allow globs such as `*` or `mcp__*`. Medium in `deny` and `ask` (the restriction does not hold), info in `allow`.
+- PERM-002 reports environment runners pre-approved with a wildcard (`npx *`, `docker exec *`, `devbox run *`, `direnv exec *`, `mise exec *`, `uv run *`, `xargs *`) and rules that start with `*`, at high.
+- PowerShell rules are checked like Bash rules for PERM-001, PERM-002 and PERM-011.
+
+### Fixed
+
+- `Bash(rm:*)`, `Bash(curl:*)` and other `:*` rules were not reported; Claude Code treats `:*` as a trailing ` *`. `rm*` and `git * main` count as wildcards too, and wrappers that Claude Code strips (`timeout 30`, `nice`, `VAR=value`) no longer hide the program.
+- `defaultMode: dontAsk` and `permissionMode: dontAsk` were reported as bypassing prompts; that mode only denies, so it is no longer reported.
+- `defaultMode` `bypassPermissions` and `auto` in project or local settings are reported at high and low, because Claude Code v2.1.257 and later ignore them there; in user settings they stay critical and medium.
+- `permissionMode` in plugin agents is not reported (Claude Code ignores it), and agent `bypassPermissions` or `auto` is medium with a line number.
+- PERM-006 no longer fires on `mcp__*` (skipped by Claude Code, now PERM-013) or on partial globs such as `mcp__github__get_*`.
+- A `permissions` value that is not an object, or `allow`, `deny` or `additionalDirectories` values that are not lists, no longer crash the scan.
+
 ## [0.2.0] - 2026-10-09
 
 ### Added

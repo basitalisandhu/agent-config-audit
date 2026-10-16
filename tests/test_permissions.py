@@ -108,8 +108,9 @@ def test_permission_severities_and_lines():
     _, rep = audit(FIXTURES / "risky-settings")
     sev = {f["id"]: f["severity"] for f in rep["findings"]}
     assert sev["PERM-001"] == "critical"
-    assert sev["PERM-003"] == "critical"
-    assert rep["summary"]["critical"] == 2
+    # Project settings: current Claude Code ignores bypassPermissions there, so it is high, not critical.
+    assert sev["PERM-003"] == "high"
+    assert rep["summary"]["critical"] == 1
     assert all(f["line"] for f in rep["findings"] if f["id"] in {"PERM-001", "PERM-003"})
 
 
@@ -134,11 +135,156 @@ def test_perm_011_requires_broad_allow_without_deny(tmp_path):
     assert "PERM-011" not in ids(rep)
 
 
-def test_dont_ask_mode_is_medium(tmp_path):
+def test_dont_ask_mode_only_denies_so_it_is_not_reported(tmp_path):
+    # https://code.claude.com/docs/en/permissions#permission-modes: dontAsk auto-denies every prompt.
     write(tmp_path, ".claude/settings.json", '{"permissions": {"defaultMode": "dontAsk"}}')
     _, rep = audit(tmp_path)
-    f = by_id(rep, "PERM-003")
-    assert f and f[0]["severity"] == "medium"
+    assert "PERM-003" not in ids(rep)
+
+
+@pytest.mark.parametrize("mode", ["default", "manual", "acceptEdits", "plan", "dontAsk"])
+def test_prompting_or_restrictive_modes_are_not_reported(tmp_path, mode):
+    write(tmp_path, ".claude/settings.json", json.dumps({"permissions": {"defaultMode": mode}}))
+    _, rep = audit(tmp_path)
+    assert "PERM-003" not in ids(rep)
+
+
+@pytest.mark.parametrize(
+    ("mode", "project_sev", "user_sev"),
+    [("bypassPermissions", "high", "critical"), ("auto", "low", "medium")],
+)
+def test_mode_severity_depends_on_settings_scope(tmp_path, mode, project_sev, user_sev):
+    body = json.dumps({"permissions": {"defaultMode": mode}})
+    write(tmp_path / "proj", ".claude/settings.json", body)
+    _, rep = audit(tmp_path / "proj")
+    assert [f["severity"] for f in by_id(rep, "PERM-003")] == [project_sev]
+    user = write(tmp_path / "home", ".claude/settings.json", body)
+    (tmp_path / "empty").mkdir()
+    _, rep = audit(tmp_path / "empty", "--extra", str(user))
+    assert [f["severity"] for f in by_id(rep, "PERM-003")] == [user_sev]
+
+
+@pytest.mark.parametrize(
+    ("rule", "fid", "severity"),
+    [
+        ("Bash(:*)", "PERM-001", "critical"),
+        ("PowerShell", "PERM-001", "critical"),
+        ("PowerShell(*)", "PERM-001", "critical"),
+        ("Bash(rm:*)", "PERM-002", "high"),
+        ("Bash(curl:*)", "PERM-002", "high"),
+        ("Bash(git:*)", "PERM-002", "medium"),
+        ("Bash(npm run test:*)", None, None),
+        ("Bash(rm*)", "PERM-002", "high"),
+        ("Bash(git * main)", "PERM-002", "medium"),
+        ("Bash(* --version)", "PERM-002", "high"),
+        ("Bash(timeout 30 rm -rf *)", "PERM-002", "high"),
+        ("Bash(NODE_ENV=test curl *)", "PERM-002", "high"),
+        ("Bash(timeout *)", None, None),
+        ("Bash(npx *)", "PERM-002", "high"),
+        ("Bash(npx prettier --check *)", None, None),
+        ("Bash(devbox run *)", "PERM-002", "high"),
+        ("Bash(docker exec:*)", "PERM-002", "high"),
+        ("Bash(xargs *)", "PERM-002", "high"),
+        ("PowerShell(Remove-Item *)", None, None),
+        ("PowerShell(curl *)", "PERM-002", "high"),
+    ],
+)
+def test_shell_rules_follow_current_claude_code_syntax(tmp_path, rule, fid, severity):
+    # https://code.claude.com/docs/en/permissions#wildcard-patterns and #process-wrappers
+    write(
+        tmp_path,
+        ".claude/settings.json",
+        json.dumps({"permissions": {"allow": [rule], "deny": ["Read(./.env)"]}}),
+    )
+    _, rep = audit(tmp_path)
+    shell = [f for f in rep["findings"] if f["id"] in {"PERM-001", "PERM-002"}]
+    if fid is None:
+        assert shell == []
+    else:
+        assert [(f["id"], f["severity"]) for f in shell] == [(fid, severity)]
+
+
+def test_runner_finding_names_the_runner(tmp_path):
+    write(
+        tmp_path,
+        ".claude/settings.json",
+        json.dumps({"permissions": {"allow": ["Bash(devbox run *)"]}}),
+    )
+    _, rep = audit(tmp_path)
+    assert (
+        by_id(rep, "PERM-002")[0]["title"] == "Pre-approved runner executes any command: devbox run"
+    )
+
+
+@pytest.mark.parametrize(
+    ("kind", "rule", "severity"),
+    [
+        ("allow", "*", "info"),
+        ("allow", "B*", "info"),
+        ("allow", "mcp__*", "info"),
+        ("allow", "mcp__github(owner:me)", "info"),
+        ("deny", "mcp__github__delete_repo(repo:*)", "medium"),
+        ("deny", "Bash(command:rm *)", "medium"),
+        ("ask", "Read(file_path:./.env)", "medium"),
+        ("deny", "WebFetch(url : https://evil.example)", "medium"),
+        ("deny", "Bash(git:* push)", "medium"),
+    ],
+)
+def test_perm_013_rules_claude_code_ignores(tmp_path, kind, rule, severity):
+    # https://code.claude.com/docs/en/permissions#tool-name-wildcards and #match-by-input-parameter
+    write(tmp_path, ".claude/settings.json", json.dumps({"permissions": {kind: [rule]}}))
+    _, rep = audit(tmp_path)
+    found = by_id(rep, "PERM-013")
+    assert [(f["severity"], f["evidence"]) for f in found] == [(severity, rule)]
+    assert "PERM-006" not in ids(rep)
+
+
+@pytest.mark.parametrize(
+    ("kind", "rule"),
+    [
+        ("deny", "*"),
+        ("deny", "mcp__*"),
+        ("allow", "mcp__github__get_*"),
+        ("deny", "Agent(model:opus)"),
+        ("deny", "Bash(run_in_background:true)"),
+        ("deny", "Bash(git push:*)"),
+        ("deny", "WebFetch(domain:*.example.com)"),
+    ],
+)
+def test_perm_013_valid_rules_are_not_reported(tmp_path, kind, rule):
+    write(tmp_path, ".claude/settings.json", json.dumps({"permissions": {kind: [rule]}}))
+    _, rep = audit(tmp_path)
+    assert "PERM-013" not in ids(rep)
+
+
+@pytest.mark.parametrize(
+    ("rule", "whole_server"),
+    [
+        ("mcp__github", True),
+        ("mcp__github__*", True),
+        ("mcp__github__get_*", False),
+        ("mcp__github__get_issue", False),
+    ],
+)
+def test_perm_006_only_for_a_whole_named_server(tmp_path, rule, whole_server):
+    write(tmp_path, ".claude/settings.json", json.dumps({"permissions": {"allow": [rule]}}))
+    _, rep = audit(tmp_path)
+    assert ("PERM-006" in ids(rep)) is whole_server
+
+
+def test_malformed_permissions_do_not_crash(tmp_path):
+    write(
+        tmp_path,
+        ".claude/settings.json",
+        json.dumps(
+            {"permissions": {"allow": "Bash", "deny": {"x": 1}, "additionalDirectories": "/"}}
+        ),
+    )
+    rc, _ = audit(tmp_path)
+    assert rc == 0
+    write(tmp_path, ".claude/settings.json", json.dumps({"permissions": ["Bash"], "hooks": {}}))
+    rc, _ = audit(tmp_path)
+    assert rc == 0
 
 
 def test_perm_002_treats_flags_before_a_wildcard_as_a_wildcard(tmp_path):
