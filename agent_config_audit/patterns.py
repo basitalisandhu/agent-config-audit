@@ -15,6 +15,7 @@ MAX_FILE_BYTES = 2 * 1024 * 1024
 PROJECT_GLOBS = [
     "CLAUDE.md", "CLAUDE.local.md", ".claude/CLAUDE.md", ".claude/settings.json", ".claude/settings.local.json",
     ".claude/commands/**/*.md", ".claude/skills/**/SKILL.md", ".claude/agents/**/*.md", ".claude/hooks/**/*", ".mcp.json",
+    ".claude/rules/**/*.md", ".claude/AGENTS.md", ".claude/output-styles/**/*.md", "**/CLAUDE.md", "**/CLAUDE.local.md", "**/AGENTS.md",
     ".claude-plugin/plugin.json", ".claude-plugin/marketplace.json", "hooks/hooks.json", "skills/*/SKILL.md",
     "agents/**/*.md", "commands/**/*.md", "plugins/*/.claude-plugin/plugin.json", "plugins/*/hooks/hooks.json",
     "plugins/*/.mcp.json", "plugins/*/skills/*/SKILL.md", "plugins/*/agents/**/*.md", "plugins/*/commands/**/*.md",
@@ -24,7 +25,8 @@ PROJECT_GLOBS = [
     ".roo/rules/**/*", ".aider.conf.yml", ".continue/config.json", ".continue/config.yaml",
 ]
 HOME_FILES = [
-    "~/.claude/settings.json", "~/.claude/CLAUDE.md", "~/.cursor/mcp.json", "~/.codex/config.toml",
+    "~/.claude/settings.json", "~/.claude/CLAUDE.md", "~/.claude.json", "~/.claude/rules/**/*.md", "~/.claude/agents/**/*.md",
+    "~/.claude/skills/**/SKILL.md", "~/.claude/commands/**/*.md", "~/.claude/output-styles/**/*.md", "~/.cursor/mcp.json", "~/.codex/config.toml",
     "~/.gemini/settings.json", "~/Library/Application Support/Claude/claude_desktop_config.json",
     "~/.config/Claude/claude_desktop_config.json", "~/AppData/Roaming/Claude/claude_desktop_config.json",
     "~/.continue/config.json", "~/.continue/config.yaml",
@@ -52,6 +54,22 @@ RUNNER_PREFIXES = [("direnv", "exec"), ("devbox", "run"), ("mise", "exec"), ("do
 # Parameter rules on these fields are ignored by Claude Code (https://code.claude.com/docs/en/permissions#match-by-input-parameter).
 PRIMARY_FIELDS = {"Bash": "command", "PowerShell": "command", "Read": "file_path", "Edit": "file_path", "Write": "file_path",
                   "Grep": "path", "Glob": "path", "NotebookEdit": "notebook_path", "WebFetch": "url"}
+# Default plugin layout (https://code.claude.com/docs/en/plugins/manifest-reference). The manifest is optional.
+PLUGIN_COMPONENT_DIRS = [".claude-plugin", "skills", "commands", "agents", "hooks", ".mcp.json", ".lsp.json", "bin", "monitors", "output-styles", "SKILL.md"]
+PLUGIN_COMPONENT_GLOBS = [".claude-plugin/plugin.json", "hooks/*.json", ".mcp.json", ".lsp.json", "monitors/monitors.json", "settings.json",
+                          "SKILL.md", "skills/*/SKILL.md", "agents/**/*.md", "commands/**/*.md", "output-styles/**/*.md", "hooks/**/*.sh", "hooks/**/*.py"]
+RESERVED_PLUGIN_PREFIXES = ("claude-", "anthropic-", "anthropics-", "cc-plugin-")
+# The 33 Claude Code hook events (https://code.claude.com/docs/en/hooks). Any other key is ignored at runtime.
+HOOK_EVENTS = frozenset({
+    "SessionStart", "Setup", "UserPromptSubmit", "UserPromptExpansion", "PreToolUse", "PermissionRequest", "PermissionDenied",
+    "PostToolUse", "PostToolUseFailure", "PostToolBatch", "Notification", "MessageDisplay", "SubagentStart", "SubagentStop",
+    "TaskCreated", "TaskCompleted", "Stop", "StopFailure", "TeammateIdle", "InstructionsLoaded", "ConfigChange", "CwdChanged",
+    "DirectoryAdded", "FileChanged", "WorktreeCreate", "WorktreeRemove", "PreCompact", "PostCompact", "PreModelSwitch",
+    "PostModelSwitch", "Elicitation", "ElicitationResult", "SessionEnd",
+})
+# Settings keys whose value is a command Claude Code runs (https://code.claude.com/docs/en/settings-reference).
+CREDENTIAL_HELPER_KEYS = ("apiKeyHelper", "awsAuthRefresh", "awsCredentialExport", "gcpAuthRefresh", "otelHeadersHelper")
+HELPER_KEYS = (*CREDENTIAL_HELPER_KEYS, "statusLine", "fileSuggestion", "subagentStatusLine")
 SECRET_KEY_RE = re.compile(r"(?i)(api[_-]?key|secret|token|passw(or)?d|passwd|credential|private[_-]?key|auth|bearer|cookie|session)")
 ENV_REF_RE = re.compile(r"^\$\{?[A-Za-z_][A-Za-z0-9_]*(:-[^}]*)?\}?$|^\$\{user_config\.[A-Za-z0-9_]+\}$")
 PLACEHOLDER_RE = re.compile(r"(?i)(xxxx|your[_-]|example|placeholder|redacted|changeme|change-me|<[^>]+>|\.\.\.|\*\*\*|dummy|sample|test-?key|fake|insert|replace|todo|tbd|\$\{)")

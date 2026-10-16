@@ -11,9 +11,21 @@ All notable changes to this project are documented here. The format follows
 - PERM-013 reports permission rules that Claude Code skips or never matches: `mcp__` rules with parentheses, parameter rules on a primary field such as `Bash(command:rm *)`, `:*` in the middle of a pattern, and unanchored allow globs such as `*` or `mcp__*`. Medium in `deny` and `ask` (the restriction does not hold), info in `allow`.
 - PERM-002 reports environment runners pre-approved with a wildcard (`npx *`, `docker exec *`, `devbox run *`, `direnv exec *`, `mise exec *`, `uv run *`, `xargs *`) and rules that start with `*`, at high.
 - PowerShell rules are checked like Bash rules for PERM-001, PERM-002 and PERM-011.
+- HOOK-007 reports hook events Claude Code does not know (for example `preToolUse`), which it ignores at runtime, with a suggestion when only the case is wrong.
+- HOOK-008 reports credential helpers (`apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`, `gcpAuthRefresh`, `otelHeadersHelper`) in project settings. Those helpers and `statusLine`, `fileSuggestion` and `subagentStatusLine` commands get the network, pipe-to-shell and credential checks.
+- `prompt` and `agent` hooks are scanned with the injection rules; `http` hooks to loopback are reported at low and literal tokens in `http` hook headers as HOOK-003.
+- PLUGIN-002 reports reserved plugin name prefixes and component paths that leave the plugin directory. Plugins without a manifest, plugins listed by relative `source` in `marketplace.json`, the files that `plugin.json` names in `hooks`, `mcpServers` and `lspServers`, `.lsp.json`, `monitors/monitors.json` and `experimental.monitors` commands are now scanned.
+- Nested `CLAUDE.md`, `CLAUDE.local.md` and `AGENTS.md` files, `.claude/rules/`, `.claude/AGENTS.md` and output styles are scanned; `--include-home` adds `~/.claude.json` MCP servers and the user rules, agents, skills, commands and output styles.
+
+### Changed
+
+- INJ-006 is low in `CLAUDE.md`, `CLAUDE.local.md` and `.claude/rules/`, because Claude Code strips block-level HTML comments from those files before loading them.
+- An empty scan now says that no agent configuration files were found, instead of reporting a clean result; `--fail-on` accepts upper case; an unknown `--ignore` id prints a warning; the table header shows the root relative to the current directory.
 
 ### Fixed
 
+- `--extra` with a file that does not exist was silently skipped; it is now a usage error (exit 2).
+- Hook, MCP server and matcher entries with the wrong JSON types (a list as `command`, a string as `args` or `hooks`, a non-object `headers`) no longer crash the scan.
 - `Bash(rm:*)`, `Bash(curl:*)` and other `:*` rules were not reported; Claude Code treats `:*` as a trailing ` *`. `rm*` and `git * main` count as wildcards too, and wrappers that Claude Code strips (`timeout 30`, `nice`, `VAR=value`) no longer hide the program.
 - `defaultMode: dontAsk` and `permissionMode: dontAsk` were reported as bypassing prompts; that mode only denies, so it is no longer reported.
 - `defaultMode` `bypassPermissions` and `auto` in project or local settings are reported at high and low, because Claude Code v2.1.257 and later ignore them there; in user settings they stay critical and medium.

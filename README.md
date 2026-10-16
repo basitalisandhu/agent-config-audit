@@ -125,18 +125,18 @@ Exit codes: 0 clean (or no `--fail-on`), 1 findings at or above the threshold, 2
 
 ### What is checked
 
-Forty-two rules in six groups; every one is documented with its trigger and why it matters in [docs/checks.md](docs/checks.md).
+Forty-five rules in six groups; every one is documented with its trigger and why it matters in [docs/checks.md](docs/checks.md).
 
 | Group | Rule ids | Examples |
 |---|---|---|
 | Permissions | PERM-001 to PERM-013 | `Bash(*)`, `rm`/`curl`/`sudo` with wildcards (including the `rm:*` form), runners such as `npx *` or `docker exec *`, `defaultMode: bypassPermissions`, `Write` for every path, `WebFetch` for every domain, whole MCP servers pre-approved, `enableAllProjectMcpServers`, `disableAllHooks`, bypass flags inside allow rules, `additionalDirectories: ["/"]`, no deny rules, explicit secret-bearing Read paths, deny rules Claude Code skips |
-| Hooks | HOOK-001 to HOOK-006 | Missing hook scripts, hooks that call `curl`/`ssh` or post to remote URLs, credentials in hook commands, `curl \| sh` in a hook, unquoted plugin root, world-writable scripts |
+| Hooks | HOOK-001 to HOOK-008 | Missing hook scripts, hooks that call `curl`/`ssh`, `http` hooks, credentials in hook commands or headers, `curl \| sh` in a hook, unquoted plugin root, world-writable scripts, unknown hook events, credential helpers in project settings; injection text in `prompt` and `agent` hooks |
 | MCP servers | MCP-001 to MCP-008 | Plain `http://` or `ws://`, literal tokens in `headers` or `env`, unpinned `npx`/`uvx`/images, servers in `/tmp` or `Downloads`, `--dangerously-skip-permissions`, deprecated SSE, filesystem server rooted at `/` or `~`, raw IP addresses |
 | Secrets | SEC-001 | OpenAI, Anthropic, GitHub, GitLab, AWS, Slack, Google, Stripe, npm, Hugging Face and credential broker key formats, private key blocks, JWTs, high-entropy `api_key = ...` assignments; placeholders are skipped |
 | Instruction files | INJ-001 to INJ-009 | "ignore previous instructions", "do not tell the user", "send ... to https://", `curl \| bash`, "always run ... on session start", zero-width and bidi characters, Unicode tag characters, imperative HTML comments, base64 blobs, "disable hooks", `rm -rf ~`, "cat ~/.ssh/id_rsa" |
-| Skills, plugins, files | SKILL-001, SKILL-002, PLUGIN-001, FILE-001, CFG-001 | `allowed-tools: Bash`, missing skill metadata, plugin `bin/` on PATH, world-writable config, JSON that does not parse |
+| Skills, plugins, files | SKILL-001, SKILL-002, PLUGIN-001, PLUGIN-002, FILE-001, CFG-001 | `allowed-tools: Bash`, missing skill metadata, plugin `bin/` on PATH, reserved plugin names and component paths outside the plugin, world-writable config, JSON that does not parse |
 
-The scanner is pattern-based. Treat critical and high findings as "open the file and look": a `Bash(curl *)` rule inside a deny list is fine, and a hook that posts to `localhost` is fine. It also cannot follow `@file` references in instruction files or read hooks of type `prompt`; do that by hand.
+The scanner is pattern-based. Treat critical and high findings as "open the file and look": a `Bash(curl *)` rule inside a deny list is fine, and a hook that posts to `localhost` is fine. It does not yet follow `@file` imports in instruction files, or read hooks declared in skill and agent front matter; check those by hand.
 
 ### Allowlist
 

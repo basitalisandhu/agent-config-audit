@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 
 from . import __version__
 from .patterns import SEVERITIES
@@ -25,13 +26,30 @@ def to_json(rep: dict) -> str:
     return json.dumps(rep, indent=1, ensure_ascii=False) + "\n"
 
 
+NOTHING_FOUND = (
+    "No agent configuration files found. Run it in a project that has CLAUDE.md, AGENTS.md, .claude/, "
+    ".mcp.json or .cursor/ files, or add --include-home or --extra FILE."
+)
+
+
+def display_root(root: str) -> str:
+    """The root relative to the current directory when it is inside it, for a shorter header."""
+    try:
+        rel = os.path.relpath(root)
+    except ValueError:
+        return root
+    return root if rel.startswith("..") else rel
+
+
 def to_table(rep: dict) -> str:
     s = rep["summary"]
     findings = rep["findings"]
     lines = [
-        f"agent-config-audit {rep['version']}: {len(rep['scanned_files'])} file(s) scanned under {rep['root']}",
+        f"agent-config-audit {rep['version']}: {len(rep['scanned_files'])} file(s) scanned under {display_root(rep['root'])}",
     ]
-    if findings:
+    if not rep["scanned_files"] and not findings:
+        lines.append(NOTHING_FOUND)
+    elif findings:
         rows = []
         for f in findings:
             where = f"{f['file']}:{f['line']}" if f["line"] else f["file"]
@@ -95,6 +113,8 @@ def to_markdown(rep: dict) -> str:
                 continue
             seen.add(f["id"])
             lines.append(f"- **{f['id']}** ({f['severity']}): {f['recommendation']}")
+    elif not rep["scanned_files"]:
+        lines.append(NOTHING_FOUND)
     else:
         lines.append(
             "No findings. The scanned configuration has no risky permissions, secrets, unpinned servers or injection patterns that this tool detects."

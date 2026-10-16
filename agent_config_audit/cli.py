@@ -11,6 +11,7 @@ from .config import ConfigError, load_config
 from .findings import at_or_above
 from .patterns import SEVERITIES
 from .report import FORMATS, render
+from .rules import RULES
 from .scanner import Auditor
 
 EXIT_OK = 0
@@ -53,6 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument(
         "--fail-on",
+        type=str.lower,
         choices=SEVERITIES,
         metavar="SEVERITY",
         help=f"exit 1 when a finding of this severity or higher exists ({', '.join(SEVERITIES)})",
@@ -91,6 +93,16 @@ def main(argv: list[str] | None = None) -> int:
     except ConfigError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return EXIT_USAGE
+    missing = [e for e in args.extra if not Path(e).is_file()]
+    if missing:
+        print(f"error: --extra {missing[0]} is not a file", file=sys.stderr)
+        return EXIT_USAGE
+    unknown = sorted({i for i in args.ignore if i not in RULES})
+    if unknown:
+        print(
+            f"warning: --ignore {', '.join(unknown)}: no such rule id (see docs/checks.md)",
+            file=sys.stderr,
+        )
     config.ignore_ids |= set(args.ignore)
     config.exclude_paths += list(args.exclude)
     auditor = Auditor(

@@ -22,16 +22,20 @@ The rule ids are shared with the `agent-config-audit` skill in [agent-security-s
 | <a id="perm-012"></a>PERM-012 [medium] | `Read(...)` in `permissions.allow` names `.env*`, `.ssh`, `.aws`, `.netrc`, `*.pem`, `*.key`, `id_rsa` or `id_ed25519`; `.env` components ending in `.example`, `.sample` or `.template` are excluded | Secrets reach the model without a prompt. This checks explicit path shapes, not file contents or every wildcard expansion |
 | <a id="perm-013"></a>PERM-013 [medium, info] | A rule shape Claude Code skips or never matches: an `mcp__` rule with parentheses, a parameter rule on a primary field (`Bash(command:...)`, `Read(file_path:...)`, `WebFetch(url:...)`), `:*` in the middle of a pattern (`Bash(git:* push)`), and in `allow` an unanchored tool-name glob (`*`, `B*`, `mcp__*`). Medium in `deny` and `ask`, info in `allow` | A deny rule that is skipped gives a false sense of safety ([permissions](https://code.claude.com/docs/en/permissions#tool-name-wildcards)) |
 
-## Hooks (settings hooks, plugin hooks/hooks.json, plugin.json hooks)
+## Hooks (settings hooks, plugin hooks/hooks.json, plugin.json hooks, settings helpers, plugin monitors and LSP servers)
 
 | ID | Trigger | Why it matters |
 |---|---|---|
 | <a id="hook-001"></a>HOOK-001 [medium] | Command or first exec-form argument points at a script that does not exist | The control is absent; failure mode depends on the host |
-| <a id="hook-002"></a>HOOK-002 [high, medium] | Hook command uses `curl`, `wget`, `ssh`, `nc`, an `http` hook to a non-loopback URL, or a hook script that can reach the network | Hook input contains commands, paths and prompts |
-| <a id="hook-003"></a>HOOK-003 [critical] | A known credential format inside the hook command | Secret in a settings file |
+| <a id="hook-002"></a>HOOK-002 [high, medium, low] | Hook command uses `curl`, `wget`, `ssh`, `nc`; an `http` hook to a non-loopback URL (high) or to loopback (low); a hook script that can reach the network (medium); a settings helper (`apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`, `gcpAuthRefresh`, `otelHeadersHelper`, `statusLine`, `fileSuggestion`, `subagentStatusLine`), plugin monitor or LSP server command that can reach the network | Hook input contains commands, paths and prompts; an `http` hook POSTs it by definition ([hooks](https://code.claude.com/docs/en/hooks)) |
+| <a id="hook-003"></a>HOOK-003 [critical, high] | A known credential format inside a hook, helper, monitor or LSP command; a literal token in an `http` hook header instead of `$VAR` with `allowedEnvVars` | Secret in a settings file |
 | <a id="hook-004"></a>HOOK-004 [critical] | `curl ... \| sh` style in a hook | Remote code on every tool call |
 | <a id="hook-005"></a>HOOK-005 [low] | Shell-form hook with unquoted `${CLAUDE_PLUGIN_ROOT}` | Breaks on paths with spaces |
 | <a id="hook-006"></a>HOOK-006 [high] | Hook script is world-writable | Anyone local can change what runs on every tool call |
+| <a id="hook-007"></a>HOOK-007 [medium] | A hook event name that is not one of the 33 Claude Code events (for example `preToolUse`); Gemini and Continue files are not checked | Claude Code ignores the entry at runtime, so the guard never runs |
+| <a id="hook-008"></a>HOOK-008 [medium] | `apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`, `gcpAuthRefresh` or `otelHeadersHelper` in project `.claude/settings*.json` | The repository decides which command produces your credentials, and project helpers run even before folder trust in `claude -p` ([permissions](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder)) |
+
+`prompt` and `agent` hooks are scanned with the instruction-file rules (INJ-*), since their `prompt` text goes to a model. `mcp_tool` hooks are parsed but not reported.
 
 ## MCP servers (.mcp.json, .cursor/mcp.json, .vscode/mcp.json, claude_desktop_config.json, plugin .mcp.json, Codex config.toml)
 
@@ -61,7 +65,7 @@ The rule ids are shared with the `agent-config-audit` skill in [agent-security-s
 | <a id="inj-003"></a>INJ-003 [high] | "send ... to https://...", "upload ... to a webhook", instructions that read or emit API keys, `.env`, SSH keys |
 | <a id="inj-004"></a>INJ-004 [critical, high] | `curl ... \| sh`; "always run ...", "on every session start run ..." |
 | <a id="inj-005"></a>INJ-005 [high, critical] | Zero-width characters, bidirectional overrides, Unicode tag characters |
-| <a id="inj-006"></a>INJ-006 [medium] | HTML comment that contains imperative instructions |
+| <a id="inj-006"></a>INJ-006 [medium, low] | HTML comment that contains imperative instructions. Low in `CLAUDE.md`, `CLAUDE.local.md` and `.claude/rules/`, because Claude Code strips block-level comments from those before loading them ([memory](https://code.claude.com/docs/en/memory)), though other agents still read them |
 | <a id="inj-007"></a>INJ-007 [medium] | Long high-entropy base64 blob |
 | <a id="inj-008"></a>INJ-008 [high] | "--dangerously-skip-permissions", "disable hooks", "approve everything", `rm -rf ~`, `chmod 777`, force-push to main |
 | <a id="inj-009"></a>INJ-009 [high] | "cat ~/.ssh/...", "read .aws/credentials", "/etc/shadow" |
@@ -75,6 +79,7 @@ Phrases preceded by a negation ("never send the API keys", "do not paste tokens"
 | <a id="skill-001"></a>SKILL-001 [medium, low] | `allowed-tools` grants unrestricted `Bash` or `Write`/`Edit` |
 | <a id="skill-002"></a>SKILL-002 [info] | SKILL.md without front matter, name or description |
 | <a id="plugin-001"></a>PLUGIN-001 [low] | Plugin ships a `bin/` directory (on the Bash PATH while enabled) |
+| <a id="plugin-002"></a>PLUGIN-002 [medium] | `plugin.json` name starts with a reserved prefix (`claude-`, `anthropic-`, `anthropics-`, `cc-plugin-`), or a component path (`skills`, `commands`, `agents`, `hooks`, `mcpServers`, `lspServers`, `outputStyles`, `workflows`) is absolute or leaves the plugin directory |
 | <a id="file-001"></a>FILE-001 [medium] | Config file is world-writable |
 | <a id="cfg-001"></a>CFG-001 [low] | JSON config does not parse (silently ignored by hosts) |
 
@@ -82,11 +87,11 @@ Phrases preceded by a negation ("never send the API keys", "do not paste tokens"
 
 Relative to the audited root:
 
-- Claude Code: `CLAUDE.md`, `CLAUDE.local.md`, `.claude/CLAUDE.md`, `.claude/settings.json`, `.claude/settings.local.json`, `.claude/commands/**`, `.claude/skills/**/SKILL.md`, `.claude/agents/**`, `.claude/hooks/**`, `.mcp.json`
-- Plugins: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `hooks/hooks.json`, `skills/*/SKILL.md`, `agents/**`, `commands/**`, `plugins/*/...`
+- Claude Code: `CLAUDE.md`, `CLAUDE.local.md` and `AGENTS.md` at any depth (nested ones load on demand), `.claude/CLAUDE.md`, `.claude/AGENTS.md`, `.claude/rules/**/*.md`, `.claude/output-styles/**`, `.claude/settings.json`, `.claude/settings.local.json`, `.claude/commands/**`, `.claude/skills/**/SKILL.md`, `.claude/agents/**`, `.claude/hooks/**`, `.mcp.json`
+- Plugins: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `hooks/hooks.json`, `skills/*/SKILL.md`, `agents/**`, `commands/**`, `plugins/*/...`. The manifest is optional, so every `plugins/<name>/` directory with a default component and every relative `source` in `marketplace.json` is a plugin root; in each root the scanner reads `.claude-plugin/plugin.json`, `hooks/*.json`, `.mcp.json`, `.lsp.json`, `monitors/monitors.json`, `settings.json`, `SKILL.md`, `skills/*/SKILL.md`, `agents/**`, `commands/**`, `output-styles/**` and hook scripts, plus the JSON files that `plugin.json` names in `hooks`, `mcpServers` and `lspServers` ([manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference))
 - Cursor: `.cursorrules`, `.cursor/rules/**/*.mdc`, `.cursor/rules/**/*.md`, `.cursor/mcp.json`
 - Others: `AGENTS.md`, `.github/copilot-instructions.md`, `.github/instructions/**`, `.windsurfrules`, `.windsurf/rules/**`, `.clinerules`, `.vscode/mcp.json`, `.gemini/settings.json`, `GEMINI.md`, `.codex/config.toml`, `.roo/rules/**`, `.aider.conf.yml`, `.continue/config.json`, `.continue/config.yaml`
-- With `--include-home`: `~/.claude/settings.json`, `~/.claude/CLAUDE.md`, `~/.cursor/mcp.json`, `~/.codex/config.toml`, `~/.gemini/settings.json`, the Claude Desktop `claude_desktop_config.json` on macOS, Linux and Windows, `~/.continue/config.*`
+- With `--include-home`: `~/.claude/settings.json`, `~/.claude/CLAUDE.md`, `~/.claude.json` (user and per-project MCP servers), `~/.claude/rules/**`, `~/.claude/agents/**`, `~/.claude/skills/**/SKILL.md`, `~/.claude/commands/**`, `~/.claude/output-styles/**`, `~/.cursor/mcp.json`, `~/.codex/config.toml`, `~/.gemini/settings.json`, the Claude Desktop `claude_desktop_config.json` on macOS, Linux and Windows, `~/.continue/config.*`
 - With `--extra FILE`: any other file
 
 Files larger than 2 MB are skipped and reported under scan errors. `node_modules` and `.git` are never entered.
