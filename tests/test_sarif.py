@@ -55,6 +55,13 @@ def test_rules_are_complete_and_unique():
         assert r["shortDescription"]["text"] and r["fullDescription"]["text"]
         assert float(r["properties"]["security-severity"]) >= 0.0
         assert " " not in r["name"]
+        # Help text from trigger/why
+        assert "help" in r and "text" in r["help"] and "markdown" in r["help"]
+        assert r["help"]["markdown"], "help.markdown must be non-empty"
+        rule_def = RULES[r["id"]]
+        trigger = rule_def.get("trigger", "")
+        if trigger:
+            assert trigger in r["help"]["markdown"], f"trigger missing from help for {r['id']}"
 
 
 def test_results_reference_rules_and_locations(project):

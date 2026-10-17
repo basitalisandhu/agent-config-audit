@@ -134,6 +134,22 @@ def _fingerprint(f: dict) -> str:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
+def _rule_help(r: dict) -> dict:
+    """Build SARIF help from trigger/why, falling back to description."""
+    trigger = r.get("trigger", "").strip()
+    why = r.get("why", "").strip() or r.get("description", "").strip()
+    # Markdown: structured with the existing Markdown fields
+    md_parts = []
+    if trigger:
+        md_parts.append(f"**Trigger:** {trigger}")
+    if why:
+        md_parts.append(why)
+    markdown = "\n\n".join(md_parts) if md_parts else r.get("description", "")
+    # Plain text: strip simple Markdown for the text field, keep description as fallback base
+    text = markdown.replace("**", "").replace("`", "")
+    return {"text": text, "markdown": markdown}
+
+
 def sarif_document(rep: dict) -> dict:
     rule_ids = list(RULES)
     rules = []
@@ -146,7 +162,7 @@ def sarif_document(rep: dict) -> dict:
                 "shortDescription": {"text": r["name"]},
                 "fullDescription": {"text": r["description"]},
                 "helpUri": f"{HELP_URI}#{rid.lower()}",
-                "help": {"text": r["description"]},
+                "help": _rule_help(r),
                 "defaultConfiguration": {"level": SARIF_LEVELS[r["severity"]]},
                 "properties": {
                     "category": r["category"],
