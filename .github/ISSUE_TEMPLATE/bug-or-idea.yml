@@ -1,0 +1,19 @@
+name: Bug, question or idea
+description: Anything that is not a false positive or a security vulnerability.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Redact secrets and personal data before you paste output or configuration.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, or what would you like?
+      description: For a bug, include the command you ran, the output and what you expected.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: agent-config-audit version
+      placeholder: "agent-config-audit --version"

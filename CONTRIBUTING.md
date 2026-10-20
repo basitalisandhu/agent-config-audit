@@ -50,7 +50,7 @@ CI runs the same commands on Python 3.11 and 3.12, fails when the committed exam
 
 ## Reporting a false positive
 
-If a benign sentence or configuration fragment is reported by a rule, use the [false-positive report form](.github/ISSUE_TEMPLATE/false-positive.yml). Include the rule ID and host, and redact credentials, tokens, personal data and other sensitive values before submitting. This helps narrow the pattern without exposing secrets.
+If a benign sentence or configuration fragment is reported by a rule, use the [false-positive report form](https://github.com/basitalisandhu/agent-config-audit/issues/new?template=false-positive.yml). Include the rule ID and host, and redact credentials, tokens, personal data and other sensitive values before submitting. This helps narrow the pattern without exposing secrets.
 
 ## Reporting security issues
 
