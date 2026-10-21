@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -60,6 +61,11 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"exit 1 when a finding of this severity or higher exists ({', '.join(SEVERITIES)})",
     )
     p.add_argument(
+        "--baseline",
+        metavar="FILE",
+        help="JSON report from a previous run; omit findings already present in it",
+    )
+    p.add_argument(
         "--config",
         metavar="FILE",
         help="allowlist file (default: .agent-config-audit.toml in the root, if present)",
@@ -88,6 +94,33 @@ def main(argv: list[str] | None = None) -> int:
     if not root.is_dir():
         print(f"error: {args.root} is not a directory", file=sys.stderr)
         return EXIT_USAGE
+    baseline_keys = None
+    if args.baseline:
+        try:
+            baseline_report = json.loads(Path(args.baseline).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            print(f"error: could not load baseline {args.baseline}: {exc}", file=sys.stderr)
+            return EXIT_USAGE
+        baseline_findings = (
+            baseline_report.get("findings") if isinstance(baseline_report, dict) else None
+        )
+        if not isinstance(baseline_findings, list):
+            print(
+                f"error: baseline {args.baseline} must be a JSON report with a findings array",
+                file=sys.stderr,
+            )
+            return EXIT_USAGE
+        baseline_keys = set()
+        for index, finding in enumerate(baseline_findings):
+            if not isinstance(finding, dict) or not all(
+                isinstance(finding.get(key), str) for key in ("id", "file", "evidence")
+            ):
+                print(
+                    f"error: baseline {args.baseline} has an invalid finding at index {index}",
+                    file=sys.stderr,
+                )
+                return EXIT_USAGE
+            baseline_keys.add((finding["id"], finding["file"], finding["evidence"]))
     try:
         config = load_config(root, Path(args.config) if args.config else None)
     except ConfigError as exc:
@@ -110,6 +143,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     auditor.run()
     rep = auditor.report()
+    remaining = [
+        finding
+        for finding in rep["findings"]
+        if baseline_keys is None
+        or (finding["id"], finding["file"], finding["evidence"]) not in baseline_keys
+    ]
+    rep["summary"]["baselined"] = len(rep["findings"]) - len(remaining)
+    rep["findings"] = remaining
+    for severity in SEVERITIES:
+        rep["summary"][severity] = sum(
+            1 for finding in remaining if finding["severity"] == severity
+        )
+    rep["summary"]["total"] = len(remaining)
     text = render(rep, args.format)
     if args.output:
         Path(args.output).write_text(text, encoding="utf-8")

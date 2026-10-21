@@ -79,6 +79,8 @@ def to_table(rep: dict) -> str:
         )
         if s.get("suppressed"):
             lines.append(f"{s['suppressed']} finding(s) suppressed by configuration.")
+    if s.get("baselined"):
+        lines.append(f"{s['baselined']} finding(s) baselined.")
     if rep["errors"]:
         lines += ["", "Scan errors:"] + [f"  {e}" for e in rep["errors"]]
     return "\n".join(lines) + "\n"
@@ -99,6 +101,8 @@ def to_markdown(rep: dict) -> str:
         + [f"| {sev} | {s[sev]} |" for sev in SEVERITIES]
         + ["", f"Total findings: {s['total']}", ""]
     )
+    if s.get("baselined"):
+        lines += [f"Baselined findings: {s['baselined']}", ""]
     if rep["findings"]:
         lines += ["| ID | Severity | Title | File | Line | Evidence |", "|---|---|---|---|---|---|"]
         for f in rep["findings"]:

@@ -108,7 +108,8 @@ The other short forms work then too: `pipx install agent-config-audit`, `uvx age
 ```text
 agent-config-audit [ROOT] [--extra FILE ...] [--include-home]
                    [--format table|json|sarif|markdown] [--output FILE]
-                   [--fail-on SEVERITY] [--config FILE] [--ignore RULE ...] [--exclude GLOB ...]
+                   [--fail-on SEVERITY] [--config FILE] [--baseline FILE]
+                   [--ignore RULE ...] [--exclude GLOB ...]
 ```
 
 | Option | Meaning |
@@ -118,6 +119,7 @@ agent-config-audit [ROOT] [--extra FILE ...] [--include-home]
 | `--include-home` | Also audit the user-level files: `~/.claude/settings.json`, `~/.claude/CLAUDE.md`, `~/.cursor/mcp.json`, `~/.codex/config.toml`, `~/.gemini/settings.json`, the Claude Desktop config on macOS, Linux and Windows. |
 | `--format` | `table` (default, for people), `json` (for scripts), `sarif` (SARIF 2.1.0 for code scanning), `markdown` (for pull request comments and reports). |
 | `--fail-on` | Exit 1 when a finding of this severity or worse exists: `critical`, `high`, `medium`, `low`, `info`. Without it the exit code is 0 whatever is found. |
+| `--baseline FILE` | JSON report from an earlier run; findings with the same rule ID, file and evidence are omitted. |
 | `--config` | Allowlist file (see below). By default `.agent-config-audit.toml` in the root is used when present. |
 | `--ignore RULE` | Leave a rule id out of the report. Repeatable. |
 | `--exclude GLOB` | Skip files or directories matching the glob, relative to the root. Repeatable. |
