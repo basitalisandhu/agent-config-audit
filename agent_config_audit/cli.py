@@ -98,8 +98,17 @@ def main(argv: list[str] | None = None) -> int:
     if args.baseline:
         try:
             baseline_report = json.loads(Path(args.baseline).read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+        except (
+            OSError,
+            ValueError,
+        ) as exc:  # ValueError covers JSONDecodeError and UnicodeDecodeError
             print(f"error: could not load baseline {args.baseline}: {exc}", file=sys.stderr)
+            return EXIT_USAGE
+        except RecursionError:
+            print(
+                f"error: could not load baseline {args.baseline}: nested too deeply to parse",
+                file=sys.stderr,
+            )
             return EXIT_USAGE
         baseline_findings = (
             baseline_report.get("findings") if isinstance(baseline_report, dict) else None

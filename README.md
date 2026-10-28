@@ -19,7 +19,7 @@ agent-config-audit --fail-on high
 Run against [`examples/sample-project/`](examples/sample-project/) (bypass mode, `Bash(*)`, a token in `.mcp.json`, a filesystem server rooted at `~`, a hook that posts to a collector, `curl | bash` in `CLAUDE.md`), it prints:
 
 ```text
-agent-config-audit 0.3.0: 4 file(s) scanned under examples/sample-project
+agent-config-audit 0.4.0: 4 file(s) scanned under examples/sample-project
 
 SEVERITY  ID        FILE                       FINDING
 ------------------------------------------------------
@@ -73,17 +73,17 @@ Agent configuration is code that runs with your privileges. A permission rule pr
 Container image (linux/amd64 and linux/arm64), published to GitHub Packages on every release. Mount the project to audit at `/work`:
 
 ```bash
-docker run --rm -v "$PWD:/work:ro" ghcr.io/basitalisandhu/agent-config-audit:0.3.0 --fail-on high
-docker run --rm -v "$PWD:/work:ro" ghcr.io/basitalisandhu/agent-config-audit:0.3.0 --format sarif > agent-config-audit.sarif
+docker run --rm -v "$PWD:/work:ro" ghcr.io/basitalisandhu/agent-config-audit:0.4.0 --fail-on high
+docker run --rm -v "$PWD:/work:ro" ghcr.io/basitalisandhu/agent-config-audit:0.4.0 --format sarif > agent-config-audit.sarif
 ```
 
 The image runs as uid 1000. Each image is signed with cosign (keyless) and has a build provenance attestation and an SPDX SBOM (attached to the GitHub Release). To verify:
 
 ```bash
-cosign verify ghcr.io/basitalisandhu/agent-config-audit:0.3.0 \
+cosign verify ghcr.io/basitalisandhu/agent-config-audit:0.4.0 \
   --certificate-identity-regexp '^https://github.com/basitalisandhu/agent-config-audit/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
-gh attestation verify oci://ghcr.io/basitalisandhu/agent-config-audit:0.3.0 --owner basitalisandhu
+gh attestation verify oci://ghcr.io/basitalisandhu/agent-config-audit:0.4.0 --owner basitalisandhu
 ```
 
 Python package: requires Python 3.11 or newer and nothing else. PyPI publication is pending, so install from the repository:
@@ -179,7 +179,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: basitalisandhu/agent-config-audit@v0.3.0   # pin a release tag
+      - uses: basitalisandhu/agent-config-audit@v0.4.0   # pin a release tag
         with:
           fail-on: high            # none | info | low | medium | high | critical
 ```
@@ -191,13 +191,29 @@ Inputs: `root`, `fail-on`, `config`, `extra` (space-separated files), `sarif-fil
 ```yaml
 repos:
   - repo: https://github.com/basitalisandhu/agent-config-audit
-    rev: v0.3.0
+    rev: v0.4.0
     hooks:
       - id: agent-config-audit
         # args: ["--fail-on", "medium", "--config", ".agent-config-audit.toml"]
 ```
 
 The hook runs whenever an agent configuration file is staged, audits the whole project and fails the commit on `high` or `critical` findings by default.
+
+## Troubleshooting
+
+Each message below is real output. Bad input exits with code 2; `--fail-on` findings exit with code 1.
+
+| You see | What it means | Fix |
+|---|---|---|
+| `error: externally-managed-environment` from `pip install` | Your system Python refuses installs outside a virtual environment. | Use `pipx install git+https://github.com/basitalisandhu/agent-config-audit`, or a venv. |
+| `No agent configuration files found. Run it in a project that has CLAUDE.md, AGENTS.md, .claude/, .mcp.json or .cursor/ files, ...` | Nothing it reads is under the root (it never enters `node_modules` or `.git`). | Run it from the project root, pass the root as an argument, or add `--extra FILE` or `--include-home`. |
+| `error: nosuch is not a directory` | The root argument is not a folder. | Pass a directory; audit a single file with `--extra FILE`. |
+| `error: could not load baseline FILE: ...` | The `--baseline` file is missing, empty, not UTF-8 or not JSON. | Write it with `agent-config-audit --format json --output FILE`. |
+| `error: baseline FILE must be a JSON report with a findings array` | The file is JSON but not an agent-config-audit report. | Use a report written with `--format json`, not SARIF or Markdown. |
+| `error: <root>/.agent-config-audit.toml: allow.ids: unknown rule id 'NOPE-1'` | The allowlist names a rule that does not exist. | Use an id from [docs/checks.md](docs/checks.md). |
+| `agent-config-audit: error: argument --fail-on: invalid choice: 'huge' ...` | Severities are critical, high, medium, low and info. | For example `--fail-on high`. |
+| `CFG-001 JSON file does not parse` | A config file has a trailing comma, a comment or a cut-off end, or is nested too deeply. | Fix the JSON. Claude Code would ignore the file too, so its deny rules and hooks are not applied. |
+| A finding you have reviewed keeps coming back | It is not in the allowlist or a baseline. | Add a `[[suppress]]` entry with a reason, or run with `--baseline`. |
 
 ## Frequently asked questions
 
@@ -220,8 +236,6 @@ The checks started as the `audit_agent_config.py` script in the `agent-config-au
 
 - A `fix` mode that rewrites the obvious cases (pin `npx` versions, replace literal tokens with `${VAR}` and print the export line).
 - Rules for Windsurf and Cline permission settings, which today are only scanned as instruction files.
-- Reading hooks declared in skill and subagent front matter.
-- Baseline mode (`--baseline report.json`) that reports only new findings in a pull request.
 
 ## Contributing
 

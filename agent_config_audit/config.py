@@ -83,6 +83,8 @@ def parse_config(text: str, source: str | None = None) -> AuditConfig:
         data = tomllib.loads(text)
     except tomllib.TOMLDecodeError as exc:
         raise ConfigError(f"{source or 'config'}: {exc}") from exc
+    except RecursionError as exc:
+        raise ConfigError(f"{source or 'config'}: nested too deeply to parse") from exc
     cfg = AuditConfig(source=source)
     allow = data.get("allow", {})
     if not isinstance(allow, dict):
@@ -120,4 +122,16 @@ def load_config(root: Path, explicit: Path | None = None) -> AuditConfig:
         return AuditConfig()
     if not path.is_file():
         raise ConfigError(f"config file not found: {path}")
-    return parse_config(path.read_text(encoding="utf-8"), source=str(path))
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        raise ConfigError(f"{path}: not UTF-8 text: {exc}") from exc
+    except OSError as exc:
+        raise ConfigError(f"{path}: cannot read: {exc.strerror or exc}") from exc
+    try:
+        return parse_config(text, source=str(path))
+    except ConfigError as exc:
+        message = str(exc)
+        raise ConfigError(
+            message if message.startswith(str(path)) else f"{path}: {message}"
+        ) from exc

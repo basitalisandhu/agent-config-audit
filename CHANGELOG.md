@@ -6,9 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-28
+
 ### Added
 
+- Hooks declared in skill (`SKILL.md`) and subagent front matter are checked with the same HOOK rules as settings hooks: remote code piped into a shell, network access, literal credentials, missing scripts, unknown event names. Claude Code registers these hooks when the skill runs and keeps them for the rest of the session ([hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)). They were not read before.
+- A Troubleshooting section in the README with real messages and fixes.
+- Seeded fuzz tests (bad bytes and wrong value types in every fixture file, bad `--baseline`, `--config` and `--extra` files) with a time limit per run, a scaling test, and a CI job that installs with pipx and compares the README quick start output.
 - `--baseline FILE` drops findings whose (id, file, evidence) is in an earlier JSON report; they are counted under `summary.baselined` and `--fail-on` applies to the rest (#12). Thanks @Aaqibhafeezkhan.
+
+### Fixed
+
+- A JSON config file nested too deeply ended the audit with a `RecursionError` traceback; it is now CFG-001. The same applied to `.claude-plugin/marketplace.json`, `--extra` files and `--baseline`.
+- A `--baseline` or `--config` file that is not UTF-8, or a TOML allowlist nested too deeply, ended with a traceback; it now exits with code 2 and names the file. Allowlist errors such as an unknown rule id name the file too.
+- A hook whose `type` was a list or object ended the audit with `TypeError: unhashable type`.
+- Large instruction files took quadratic time because every finding counted newlines from the start of the file (a 20,000-line project: 10.9 s, now about 1 s).
 
 ## [0.3.0] - 2026-10-16
 
@@ -69,7 +81,8 @@ All notable changes to this project are documented here. The format follows
 - Renamed the umbrella project from Hisar to Masoon; links, names and identifiers updated.
 - PyPI publishing (release.yml) is off until the repository variable `PYPI_PUBLISH` is set to `true`.
 
-[Unreleased]: https://github.com/basitalisandhu/agent-config-audit/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/basitalisandhu/agent-config-audit/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/basitalisandhu/agent-config-audit/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/basitalisandhu/agent-config-audit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/basitalisandhu/agent-config-audit/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/basitalisandhu/agent-config-audit/compare/v0.1.0...v0.1.1

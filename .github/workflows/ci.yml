@@ -46,6 +46,38 @@ jobs:
       - name: Audit this repository's own agent configuration
         run: agent-config-audit . --exclude 'tests/**' --exclude 'examples/**' --fail-on low
 
+  quickstart:
+    name: README quick start on a fresh install
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Install with pipx from the checkout and compare with the README sample
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --quiet pipx
+          export PIPX_HOME="$RUNNER_TEMP/pipx" PIPX_BIN_DIR="$RUNNER_TEMP/bin"
+          python -m pipx install --quiet "$GITHUB_WORKSPACE"
+          export PATH="$PIPX_BIN_DIR:$PATH"
+          # The README sample ends with "  ..." after the first two fixes; compare everything before that line.
+          awk '/^```text$/{f=1;next} f&&/^```$/{exit} f' README.md | sed '/^  \.\.\.$/,$d' > "$RUNNER_TEMP/want.txt"
+          cp -r examples "$RUNNER_TEMP/examples"
+          cd "$RUNNER_TEMP"
+          agent-config-audit examples/sample-project > got.txt
+          version=$(agent-config-audit --version | awk '{print $NF}')
+          sed -i "1s/^agent-config-audit [0-9.]*:/agent-config-audit $version:/" want.txt
+          diff want.txt <(head -n "$(wc -l < want.txt)" got.txt)
+          set +e
+          agent-config-audit examples/sample-project --fail-on high > /dev/null
+          code=$?
+          set -e
+          test "$code" = "1"
+
   action:
     name: Run the action on the example
     runs-on: ubuntu-latest

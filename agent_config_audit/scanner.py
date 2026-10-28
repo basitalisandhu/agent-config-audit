@@ -5,6 +5,7 @@ Read-only, standard library only, no network.
 
 from __future__ import annotations
 
+import bisect
 import json
 import os
 import re
@@ -14,6 +15,7 @@ from pathlib import Path
 
 from .config import AuditConfig, load_config
 from .findings import Finding, redact, shannon_entropy
+from .frontmatter import front_matter_hooks
 from .patterns import (
     BASE64_BLOB_RE,
     BIDI_RE,
@@ -50,6 +52,20 @@ from .patterns import (
     ZERO_WIDTH_RE,
 )
 
+_LINES: list = [None, []]
+
+
+def line_at(text: str, index: int) -> int:
+    """1-based line of a character offset. Newline offsets are indexed once per text, so many findings in one
+    large file cost O(log n) each instead of a scan from the start of the file."""
+    if _LINES[0] is not text:
+        offsets, pos = [], text.find("\n")
+        while pos >= 0:
+            offsets.append(pos)
+            pos = text.find("\n", pos + 1)
+        _LINES[0], _LINES[1] = text, offsets
+    return bisect.bisect_left(_LINES[1], index) + 1
+
 
 class Auditor:
     def __init__(
@@ -70,13 +86,18 @@ class Auditor:
         self._seen: set = set()
         self._plugin_roots: list[Path] | None = None
         self._scanned_paths: set[Path] = set()
+        self._rel: dict[Path, str] = {}
 
     # ------------------------------------------------------------------ helpers
     def rel(self, path: Path) -> str:
-        try:
-            return path.resolve().relative_to(self.root).as_posix()
-        except ValueError:
-            return path.as_posix()
+        cached = self._rel.get(path)
+        if cached is None:
+            try:
+                cached = path.resolve().relative_to(self.root).as_posix()
+            except ValueError:
+                cached = path.as_posix()
+            self._rel[path] = cached
+        return cached
 
     def add(self, fid: str, severity: str, category: str, title: str, path: Path, line: int | None, evidence: str, recommendation: str) -> None:
         f = Finding(fid, severity, category, title, self.rel(path), line, redact(evidence)[:300], recommendation)
@@ -98,7 +119,7 @@ class Auditor:
             idx = text.find(needle.split("\n")[0][:40])
         if idx < 0:
             return None
-        return text.count("\n", 0, idx) + 1
+        return line_at(text, idx)
 
     def read(self, path: Path) -> str | None:
         try:
@@ -188,7 +209,7 @@ class Auditor:
         if market.is_file():
             try:
                 data = json.loads(market.read_text(encoding="utf-8", errors="replace"))
-            except (OSError, ValueError):
+            except (OSError, ValueError, RecursionError):
                 data = {}
             entries = data.get("plugins") if isinstance(data, dict) else None
             base = self.root
@@ -233,7 +254,7 @@ class Auditor:
                         continue
                 elif PLACEHOLDER_RE.search(value) or (len(set(value)) < 8 and "PRIVATE KEY" not in value):
                     continue
-                line = text.count("\n", 0, m.start()) + 1
+                line = line_at(text, m.start())
                 self.add("SEC-001", sev, "secret", f"{title} found in agent configuration", path, line, m.group(0),
                          "Move the value to an environment variable or a secret store, reference it as ${VAR}, rotate it now, and purge it from history.")
 
@@ -243,6 +264,10 @@ class Auditor:
         except json.JSONDecodeError as exc:
             self.add("CFG-001", "low", "config", "JSON file does not parse", path, exc.lineno, str(exc)[:120],
                      "Fix the syntax; a config that fails to parse is silently ignored by most hosts, so its protections (deny rules, hooks) are not applied.")
+            return
+        except RecursionError:
+            self.add("CFG-001", "low", "config", "JSON file does not parse", path, 1, "nested too deeply to parse",
+                     "Fix the file; a config that fails to parse is silently ignored by most hosts, so its protections (deny rules, hooks) are not applied.")
             return
         if path.name == "monitors.json":
             self.scan_monitors(path, text, data)
@@ -531,6 +556,8 @@ class Auditor:
 
     def scan_hook(self, path: Path, text: str, event: str, h: dict, plugin_root: Path | None) -> None:
         htype = h.get("type", "command")
+        if not isinstance(htype, str):
+            htype = "command"
         command = h.get("command") if isinstance(h.get("command"), str) else ""
         args = [a for a in h.get("args") if isinstance(a, str)] if isinstance(h.get("args"), list) else []
         full = " ".join([command, *args])
@@ -625,7 +652,7 @@ class Auditor:
         elif NETWORK_TOOL_RE.search(text) and not re.search(r"(?i)localhost|127\.0\.0\.1", text):
             m = NETWORK_TOOL_RE.search(text)
             assert m is not None
-            self.add("HOOK-002", "medium", "hooks", "Hook script can reach the network", path, text.count("\n", 0, m.start()) + 1, m.group(0),
+            self.add("HOOK-002", "medium", "hooks", "Hook script can reach the network", path, line_at(text, m.start()), m.group(0),
                      "Confirm what the script sends and where; hook input contains commands, paths and prompts.")
 
     # MCP ------------------------------------------------------------------------
@@ -723,10 +750,10 @@ class Auditor:
     # TOML (codex) ---------------------------------------------------------------
     def scan_toml(self, path: Path, text: str) -> None:
         for m in re.finditer(r"(?im)^\s*(approval_policy|sandbox_mode|sandbox)\s*=\s*\"?(never|danger-full-access|full-access|yolo)\"?", text):
-            self.add("PERM-003", "high", "permissions", f"{m.group(1)} set to {m.group(2)}", path, text.count("\n", 0, m.start()) + 1, m.group(0).strip(),
+            self.add("PERM-003", "high", "permissions", f"{m.group(1)} set to {m.group(2)}", path, line_at(text, m.start()), m.group(0).strip(),
                      "Use an approval policy that prompts for unsafe commands and keep the sandbox on.")
         for m in re.finditer(r"(?im)^\s*(url|command)\s*=\s*\"(http://[^\"]+)\"", text):
-            self.add("MCP-001", "high", "mcp", "MCP server configured over plain HTTP", path, text.count("\n", 0, m.start()) + 1, m.group(2), "Use https://.")
+            self.add("MCP-001", "high", "mcp", "MCP server configured over plain HTTP", path, line_at(text, m.start()), m.group(2), "Use https://.")
 
     # instruction files ----------------------------------------------------------
     def follows_imports(self, path: Path) -> bool:
@@ -787,33 +814,33 @@ class Auditor:
             for m in pattern.finditer(text):
                 if negatable and NEGATION_RE.search(text[max(0, m.start() - 40): m.start()]):
                     continue
-                line = text.count("\n", 0, m.start()) + 1
+                line = line_at(text, m.start())
                 self.add(fid, sev, "injection", title, path, line, m.group(0), rec)
         for m in ZERO_WIDTH_RE.finditer(text):
-            self.add("INJ-005", "high", "injection", "Invisible (zero-width) character in instruction file", path, text.count("\n", 0, m.start()) + 1,
+            self.add("INJ-005", "high", "injection", "Invisible (zero-width) character in instruction file", path, line_at(text, m.start()),
                      f"U+{ord(m.group(0)):04X}", "Remove it. Invisible characters hide text from reviewers while the model still reads it.")
             break
         for m in BIDI_RE.finditer(text):
-            self.add("INJ-005", "high", "injection", "Bidirectional control character in instruction file", path, text.count("\n", 0, m.start()) + 1,
+            self.add("INJ-005", "high", "injection", "Bidirectional control character in instruction file", path, line_at(text, m.start()),
                      f"U+{ord(m.group(0)):04X}", "Remove it. Bidi overrides make displayed text differ from what the model reads.")
             break
         for m in TAG_CHARS_RE.finditer(text):
-            self.add("INJ-005", "critical", "injection", "Unicode tag characters (hidden ASCII) in instruction file", path, text.count("\n", 0, m.start()) + 1,
+            self.add("INJ-005", "critical", "injection", "Unicode tag characters (hidden ASCII) in instruction file", path, line_at(text, m.start()),
                      f"U+{ord(m.group(0)):05X}", "Remove them. Tag characters encode invisible instructions that some models decode.")
             break
         for m in HTML_COMMENT_RE.finditer(text):
             body = m.group(1).strip()
             if len(body) > 20 and IMPERATIVE_RE.search(body):
                 if self.strips_html_comments(path):
-                    self.add("INJ-006", "low", "injection", "HTML comment containing instructions", path, text.count("\n", 0, m.start()) + 1, body[:120],
+                    self.add("INJ-006", "low", "injection", "HTML comment containing instructions", path, line_at(text, m.start()), body[:120],
                              "Claude Code strips block-level comments from this file before loading it, but other agents and anything that reads the file directly still see the text. Move it into the open or delete it.")
                 else:
-                    self.add("INJ-006", "medium", "injection", "HTML comment containing instructions", path, text.count("\n", 0, m.start()) + 1, body[:120],
+                    self.add("INJ-006", "medium", "injection", "HTML comment containing instructions", path, line_at(text, m.start()), body[:120],
                              "Rendered Markdown hides comments from readers but not from the model. Move the text into the open or delete it.")
         for m in BASE64_BLOB_RE.finditer(text):
             blob = m.group(0)
             if shannon_entropy(blob) > 4.0:
-                self.add("INJ-007", "medium", "injection", "Long base64-looking blob in instruction file", path, text.count("\n", 0, m.start()) + 1, blob[:60] + "...",
+                self.add("INJ-007", "medium", "injection", "Long base64-looking blob in instruction file", path, line_at(text, m.start()), blob[:60] + "...",
                          "Decode and review it, or remove it. Encoded payloads are a common way to smuggle instructions past review.")
                 break
 
@@ -828,7 +855,7 @@ class Auditor:
         if m:
             tools = m.group(2)
             if re.search(r"\bBash(\((\*|\s*)\))?(\s|,|$)", tools) or "Bash(*)" in tools:
-                self.add("SKILL-001", "medium", "skill", "Skill or command pre-approves unrestricted Bash", path, text[:text.find(m.group(0))].count("\n") + 1, m.group(0).strip(),
+                self.add("SKILL-001", "medium", "skill", "Skill or command pre-approves unrestricted Bash", path, line_at(text, text.find(m.group(0))), m.group(0).strip(),
                          "Grant specific commands, for example Bash(python3 scripts/*), and keep the grant short-lived.")
             if re.search(r"\b(Write|Edit)(\((\*|\*\*)?\))?(\s|,|$)", tools):
                 self.add("SKILL-001", "low", "skill", "Skill or command pre-approves writes everywhere", path, None, m.group(0).strip(), "Scope the write grant to the paths the skill needs.")
@@ -836,11 +863,17 @@ class Auditor:
             self.add("SKILL-002", "info", "skill", "SKILL.md frontmatter has no name", path, 1, fm[:40], "Add name: matching the directory.")
         if path.name == "SKILL.md" and not re.search(r"(?m)^description\s*:", fm):
             self.add("SKILL-002", "info", "skill", "SKILL.md frontmatter has no description", path, 1, fm[:40], "Add a description; it is what makes the skill trigger.")
+        hooks = front_matter_hooks(fm)
+        if hooks:
+            # https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents: same shape as settings hooks; a skill's
+            # hooks stay registered for the rest of the session once it is invoked.
+            plugin_root = next((r for r in self.plugin_roots() if r in path.parents), None)
+            self.scan_hooks(path, text, hooks, plugin_root)
         pm = re.search(r"(?im)^permissionMode\s*:\s*[\"']?(bypassPermissions|auto)\b", fm)
         if pm and not self.in_plugin(path):
             # https://code.claude.com/docs/en/sub-agents: dontAsk only denies; bypassPermissions applies only when the main
             # session already bypasses (Claude Code v2.1.267 and later); plugin subagents ignore permissionMode.
-            self.add("PERM-003", "medium", "permissions", f"Agent file sets permissionMode {pm.group(1)}", path, text[: text.find(pm.group(0))].count("\n") + 1, pm.group(0).strip(),
+            self.add("PERM-003", "medium", "permissions", f"Agent file sets permissionMode {pm.group(1)}", path, line_at(text, text.find(pm.group(0))), pm.group(0).strip(),
                      "Remove it and let the user's session decide. Older Claude Code versions run this subagent without prompts even when the session prompts.")
 
     # ------------------------------------------------------------------ report

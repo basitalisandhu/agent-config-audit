@@ -24,7 +24,7 @@ The rule ids are shared with the `agent-config-audit` skill in [agent-security-s
 | <a id="perm-013"></a>PERM-013 [medium, info] | A rule shape Claude Code skips or never matches: an `mcp__` rule with parentheses, a parameter rule on a primary field (`Bash(command:...)`, `Read(file_path:...)`, `WebFetch(url:...)`), `:*` in the middle of a pattern (`Bash(git:* push)`), and in `allow` an unanchored tool-name glob (`*`, `B*`, `mcp__*`). Medium in `deny` and `ask`, info in `allow` | A deny rule that is skipped gives a false sense of safety ([permissions](https://code.claude.com/docs/en/permissions#tool-name-wildcards)) |
 <!-- /rules:permissions -->
 
-## Hooks (settings hooks, plugin hooks/hooks.json, plugin.json hooks, settings helpers, plugin monitors and LSP servers)
+## Hooks (settings hooks, plugin hooks/hooks.json, plugin.json hooks, skill and subagent front matter hooks, settings helpers, plugin monitors and LSP servers)
 
 <!-- rules:hooks -->
 | ID | Trigger | Why it matters |
