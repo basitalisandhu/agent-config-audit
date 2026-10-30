@@ -37,6 +37,7 @@ The rule ids are shared with the `agent-config-audit` skill in [agent-security-s
 | <a id="hook-006"></a>HOOK-006 [high] | Hook script is world-writable | Anyone local can change what runs on every tool call |
 | <a id="hook-007"></a>HOOK-007 [medium] | A hook event name that is not one of the 33 Claude Code events (for example `preToolUse`); Gemini and Continue files are not checked | Claude Code ignores the entry at runtime, so the guard never runs |
 | <a id="hook-008"></a>HOOK-008 [medium] | `apiKeyHelper`, `awsAuthRefresh`, `awsCredentialExport`, `gcpAuthRefresh` or `otelHeadersHelper` in project `.claude/settings*.json` | The repository decides which command produces your credentials, and project helpers run even before folder trust in `claude -p` ([permissions](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder)) |
+| <a id="hook-009"></a>HOOK-009 [info] | `once: true` on a hook handler in settings, `hooks/hooks.json` or subagent front matter (`SKILL.md` is excluded) | `once` is a skill-only field; Claude Code ignores it elsewhere and runs the hook on every matching event ([hooks](https://code.claude.com/docs/en/hooks#hook-handler-fields)) |
 <!-- /rules:hooks -->
 
 `prompt` and `agent` hooks are scanned with the instruction-file rules (INJ-*), since their `prompt` text goes to a model. `mcp_tool` hooks are parsed but not reported.

@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- HOOK-009 reports `once: true` on hooks declared in settings, plugin hooks or agent files (#28). Claude Code only honours `once` on hooks in `SKILL.md` front matter and runs other hooks on every matching event.
+
+
 ## [0.4.0] - 2026-10-28
 
 ### Added
