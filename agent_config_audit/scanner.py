@@ -555,6 +555,18 @@ class Auditor:
         return ".gemini" not in parts and ".continue" not in parts and "claude_desktop_config.json" not in parts
 
     def scan_hook(self, path: Path, text: str, event: str, h: dict, plugin_root: Path | None) -> None:
+        if h.get("once") is True and path.name != "SKILL.md":
+            once_line = self.line_of(text, '"once"') or self.line_of(text, "once:")
+            self.add(
+                "HOOK-009",
+                "info",
+                "hooks",
+                f"{event} hook sets once: true where Claude Code ignores it",
+                path,
+                once_line,
+                "once: true",
+                "Claude Code honours once: true only on hooks defined in skill front matter (SKILL.md); in settings files, plugin hook files and subagent front matter it is ignored and runs on every event.",
+            )
         htype = h.get("type", "command")
         if not isinstance(htype, str):
             htype = "command"

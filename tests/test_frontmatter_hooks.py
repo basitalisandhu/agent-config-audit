@@ -139,3 +139,86 @@ def test_parser_never_raises_or_hangs_on_random_input():
     t.join(30)
     assert not t.is_alive(), "front_matter_hooks did not finish within 30s"
     assert not errors, errors[:3]
+
+
+def test_once_true_in_skill_frontmatter_has_no_finding(tmp_path):
+    skill = """---
+name: helper
+description: A helper skill.
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: "./scripts/echo.sh"
+          once: true
+---
+Body
+"""
+    write(tmp_path, ".claude/skills/helper/SKILL.md", skill)
+    _, rep = audit(tmp_path)
+    assert not by_id(rep, "HOOK-009")
+
+
+def test_once_true_in_agent_frontmatter_reports_hook_009(tmp_path):
+    agent = """---
+name: reviewer
+description: An agent.
+hooks:
+  PreToolUse:
+    - matcher: "Bash"
+      hooks:
+        - type: command
+          command: "./scripts/echo.sh"
+          once: true
+---
+Body
+"""
+    write(tmp_path, ".claude/agents/reviewer.md", agent)
+    _, rep = audit(tmp_path)
+    findings = by_id(rep, "HOOK-009")
+    assert findings
+    assert findings[0]["severity"] == "info"
+    assert "PreToolUse" in findings[0]["title"]
+
+
+def test_once_true_in_settings_reports_hook_009(tmp_path):
+    settings = {
+        "hooks": {
+            "PostToolUse": [
+                {
+                    "matcher": "Bash",
+                    "hooks": [
+                        {"type": "command", "command": "./scripts/echo.sh", "once": True}
+                    ]
+                }
+            ]
+        }
+    }
+    import json
+    write(tmp_path, ".claude/settings.json", json.dumps(settings))
+    _, rep = audit(tmp_path)
+    findings = by_id(rep, "HOOK-009")
+    assert findings
+    assert findings[0]["severity"] == "info"
+    assert "PostToolUse" in findings[0]["title"]
+
+
+def test_once_false_or_absent_has_no_hook_009(tmp_path):
+    settings = {
+        "hooks": {
+            "PostToolUse": [
+                {
+                    "matcher": "Bash",
+                    "hooks": [
+                        {"type": "command", "command": "./scripts/echo.sh", "once": False},
+                        {"type": "command", "command": "./scripts/echo.sh"}
+                    ]
+                }
+            ]
+        }
+    }
+    import json
+    write(tmp_path, ".claude/settings.json", json.dumps(settings))
+    _, rep = audit(tmp_path)
+    assert not by_id(rep, "HOOK-009")
