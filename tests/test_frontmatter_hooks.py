@@ -188,14 +188,13 @@ def test_once_true_in_settings_reports_hook_009(tmp_path):
             "PostToolUse": [
                 {
                     "matcher": "Bash",
-                    "hooks": [
-                        {"type": "command", "command": "./scripts/echo.sh", "once": True}
-                    ]
+                    "hooks": [{"type": "command", "command": "./scripts/echo.sh", "once": True}],
                 }
             ]
         }
     }
     import json
+
     write(tmp_path, ".claude/settings.json", json.dumps(settings))
     _, rep = audit(tmp_path)
     findings = by_id(rep, "HOOK-009")
@@ -212,13 +211,14 @@ def test_once_false_or_absent_has_no_hook_009(tmp_path):
                     "matcher": "Bash",
                     "hooks": [
                         {"type": "command", "command": "./scripts/echo.sh", "once": False},
-                        {"type": "command", "command": "./scripts/echo.sh"}
-                    ]
+                        {"type": "command", "command": "./scripts/echo.sh"},
+                    ],
                 }
             ]
         }
     }
     import json
+
     write(tmp_path, ".claude/settings.json", json.dumps(settings))
     _, rep = audit(tmp_path)
     assert not by_id(rep, "HOOK-009")
