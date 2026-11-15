@@ -13,10 +13,12 @@ from __future__ import annotations
 import json
 import re
 
+from .source_locations import LocatedMapping
+
 _KEY = re.compile(r"^([^\s:#'\"][^:#]*?|\"[^\"]*\"|'[^']*')\s*:(?:\s+(.*))?$")
 
 
-def _parse_flow(text: str):
+def _parse_flow(text: str, line: int | None):
     def _parse(s: str, i: int, depth: int = 0):
         if depth > 50 or i >= len(s):
             return None, len(s)
@@ -47,7 +49,7 @@ def _parse_flow(text: str):
             return None, len(s)
         elif s[i] == "{":
             i += 1
-            mapping: dict = {}
+            mapping = LocatedMapping()
             while i < len(s):
                 while i < len(s) and s[i].isspace():
                     i += 1
@@ -61,6 +63,8 @@ def _parse_flow(text: str):
                     i += 1
                 val, i = _parse_val(s, i, depth + 1)
                 mapping[key] = val
+                if key == "once":
+                    mapping.once_line = line
                 while i < len(s) and s[i].isspace():
                     i += 1
                 if i < len(s) and s[i] == ",":
@@ -151,10 +155,10 @@ def _parse_flow(text: str):
         return None
 
 
-def _scalar(raw: str):
+def _scalar(raw: str, line: int | None = None):
     value = raw.strip()
     if value.startswith(("[", "{")):
-        return _parse_flow(value)
+        return _parse_flow(value, line)
     if value.startswith('"'):
         end = value.rfind('"')
         if end > 0:
@@ -174,17 +178,17 @@ def _scalar(raw: str):
     return value
 
 
-def _lines(block: str) -> list[tuple[int, str]]:
+def _lines(block: str, first_line: int) -> list[tuple[int, str, int]]:
     out = []
-    for raw in block.splitlines():
+    for line, raw in enumerate(block.splitlines(), first_line):
         if not raw.strip() or raw.lstrip().startswith("#"):
             continue
         expanded = raw.replace("\t", "    ")
-        out.append((len(expanded) - len(expanded.lstrip(" ")), expanded.strip()))
+        out.append((len(expanded) - len(expanded.lstrip(" ")), expanded.strip(), line))
     return out
 
 
-def _parse(lines: list[tuple[int, str]], i: int, indent: int, depth: int):
+def _parse(lines: list[tuple[int, str, int]], i: int, indent: int, depth: int):
     """Parse the node starting at lines[i] with this indent; return (value, next index)."""
     if depth > 50 or i >= len(lines):
         return None, len(lines)
@@ -201,29 +205,32 @@ def _parse(lines: list[tuple[int, str]], i: int, indent: int, depth: int):
                     value, i = _parse(lines, i + 1, lines[i + 1][0], depth + 1)
                 else:
                     value, i = None, i + 1
-            elif _KEY.match(rest) and not rest.startswith(("- ", "-")):
+            elif _KEY.match(rest) and not rest.startswith(("-", "[", "{")):
                 # "- key: value" starts a mapping indented to where "key" begins.
                 inner = indent + (len(lines[i][1]) - len(rest))
-                lines[i] = (inner, rest)
+                lines[i] = (inner, rest, lines[i][2])
                 value, i = _parse(lines, i, inner, depth + 1)
             elif rest == "-" or rest.startswith("- "):
                 inner = indent + (len(lines[i][1]) - len(rest))
-                lines[i] = (inner, rest)
+                lines[i] = (inner, rest, lines[i][2])
                 value, i = _parse(lines, i, inner, depth + 1)
             else:
-                value, i = _scalar(rest), i + 1
+                value, i = _scalar(rest, lines[i][2]), i + 1
             items.append(value)
         return items, i
-    mapping: dict = {}
+    mapping = LocatedMapping()
     while i < len(lines) and lines[i][0] == indent:
         m = _KEY.match(lines[i][1])
         if not m or lines[i][1].startswith("- "):
             return (mapping or None), i + (0 if mapping else 1)
-        key = _scalar(m.group(1)) if m.group(1)[:1] in "\"'" else m.group(1).strip()
+        line = lines[i][2]
+        key = _scalar(m.group(1), line) if m.group(1)[:1] in "\"'" else m.group(1).strip()
+        if key == "once":
+            mapping.once_line = line
         rest = m.group(2)
         i += 1
         if rest is not None and rest.strip() and not rest.strip().startswith("#"):
-            mapping[key] = _scalar(rest)
+            mapping[key] = _scalar(rest, line)
         elif i < len(lines) and (
             lines[i][0] > indent
             or (lines[i][0] == indent and (lines[i][1] == "-" or lines[i][1].startswith("- ")))
@@ -237,18 +244,18 @@ def _parse(lines: list[tuple[int, str]], i: int, indent: int, depth: int):
 def front_matter_hooks(front_matter: str) -> dict | None:
     """The hooks mapping from front matter text (no --- fences), or None when there is none."""
     block: list[str] = []
-    inside = False
-    for raw in front_matter.splitlines():
-        if not inside:
+    first_line = None
+    for line, raw in enumerate(front_matter.splitlines(), 1):
+        if first_line is None:
             if re.match(r"^hooks\s*:\s*(#.*)?$", raw):
-                inside = True
+                first_line = line + 1
             continue
         if raw.strip() and not raw[:1].isspace() and not raw.startswith("-"):
             break
         block.append(raw)
-    if not inside:
+    if first_line is None:
         return None
-    lines = _lines("\n".join(block))
+    lines = _lines("\n".join(block), first_line)
     if not lines:
         return None
     value, _ = _parse(lines, 0, lines[0][0], 0)

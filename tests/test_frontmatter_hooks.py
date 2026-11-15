@@ -83,6 +83,105 @@ def test_unknown_front_matter_event_is_reported(tmp_path):
     assert by_id(rep, "HOOK-007")
 
 
+def test_hook_once_is_reported_outside_skills(tmp_path):
+    write(
+        tmp_path,
+        ".claude/settings.json",
+        '{"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "echo", "once": true}]}]}}',
+    )
+    write(
+        tmp_path,
+        "plugins/p/hooks/hooks.json",
+        '{"hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo", "once": true}]}]}}',
+    )
+    write(
+        tmp_path,
+        ".claude/agents/reviewer.md",
+        "---\nname: reviewer\nhooks:\n  Stop:\n    - hooks:\n        - type: command\n          command: echo\n          once: true\n---\n",
+    )
+    _, rep = audit(tmp_path)
+    found = by_id(rep, "HOOK-009")
+    assert len(found) == 3
+    assert all(f["severity"] == "info" for f in found)
+    by_file = {f["file"]: f["title"] for f in found}
+    assert "PreToolUse" in by_file[".claude/settings.json"]
+    assert "SessionStart" in by_file["plugins/p/hooks/hooks.json"]
+    assert "Stop" in by_file[".claude/agents/reviewer.md"]
+
+
+def test_hook_once_locates_each_json_handler(tmp_path):
+    settings = r"""{
+  "description": "\"once\": true",
+  "hooks": {
+    "PreToolUse": [{
+      "hooks": [
+        {"type": "command", "command": "echo shared", "once": false},
+        {"type": "command", "once": true, "command": "echo shared"},
+        {"type": "command", "command": "echo shared", "on\u0063e": true}
+      ]
+    }]
+  }
+}
+"""
+    write(tmp_path, ".claude/settings.json", settings)
+    _, rep = audit(tmp_path)
+    assert [finding["line"] for finding in by_id(rep, "HOOK-009")] == [7, 8]
+
+
+def test_hook_once_locates_block_and_flow_handlers(tmp_path):
+    agent = """---
+name: reviewer
+description: "Run once: true before continuing"
+hooks:
+  Stop:
+    - hooks:
+        - command: echo shared
+          once: true
+        - 'once': true
+          command: echo shared
+        - {type: command, command: echo shared, once: true}
+---
+"""
+    write(tmp_path, ".claude/agents/reviewer.md", agent)
+    _, rep = audit(tmp_path)
+    assert [finding["line"] for finding in by_id(rep, "HOOK-009")] == [8, 9, 11]
+
+
+def test_hook_once_in_skill_or_false_is_not_reported(tmp_path):
+    write(
+        tmp_path,
+        ".claude/skills/s/SKILL.md",
+        "---\nname: s\ndescription: d\nhooks:\n  PreToolUse:\n    - hooks:\n        - type: command\n          command: echo\n          once: true\n---\n",
+    )
+    write(
+        tmp_path,
+        ".claude/settings.json",
+        '{"hooks": {"PreToolUse": [{"hooks": [{"type": "command", "command": "echo", "once": false}, {"type": "command", "command": "echo"}]}]}}',
+    )
+    _, rep = audit(tmp_path)
+    assert not by_id(rep, "HOOK-009")
+
+
+def test_hook_once_reports_line_of_setting_handler(tmp_path):
+    settings = (
+        "{\n"
+        '  "hooks": {\n'
+        '    "PreToolUse": [{\n'
+        '      "hooks": [\n'
+        '        {"type": "command", "command": "cmd_a", "once": false},\n'
+        '        {"type": "command", "command": "cmd_b", "once": true}\n'
+        "      ]\n"
+        "    }]\n"
+        "  }\n"
+        "}\n"
+    )
+    write(tmp_path, ".claude/settings.json", settings)
+    _, rep = audit(tmp_path)
+    found = by_id(rep, "HOOK-009")
+    assert len(found) == 1
+    assert found[0]["line"] == 6
+
+
 def test_parser_reads_the_documented_shape():
     fm = 'hooks:\n  PreToolUse:\n    - matcher: "Bash"\n      hooks:\n        - type: command\n          command: "./s.sh"\n'
     assert front_matter_hooks(fm) == {
