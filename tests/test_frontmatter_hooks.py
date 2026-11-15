@@ -109,6 +109,44 @@ def test_hook_once_is_reported_outside_skills(tmp_path):
     assert "Stop" in by_file[".claude/agents/reviewer.md"]
 
 
+def test_hook_once_locates_each_json_handler(tmp_path):
+    settings = r"""{
+  "description": "\"once\": true",
+  "hooks": {
+    "PreToolUse": [{
+      "hooks": [
+        {"type": "command", "command": "echo shared", "once": false},
+        {"type": "command", "once": true, "command": "echo shared"},
+        {"type": "command", "command": "echo shared", "on\u0063e": true}
+      ]
+    }]
+  }
+}
+"""
+    write(tmp_path, ".claude/settings.json", settings)
+    _, rep = audit(tmp_path)
+    assert [finding["line"] for finding in by_id(rep, "HOOK-009")] == [7, 8]
+
+
+def test_hook_once_locates_block_and_flow_handlers(tmp_path):
+    agent = """---
+name: reviewer
+description: "Run once: true before continuing"
+hooks:
+  Stop:
+    - hooks:
+        - command: echo shared
+          once: true
+        - 'once': true
+          command: echo shared
+        - {type: command, command: echo shared, once: true}
+---
+"""
+    write(tmp_path, ".claude/agents/reviewer.md", agent)
+    _, rep = audit(tmp_path)
+    assert [finding["line"] for finding in by_id(rep, "HOOK-009")] == [8, 9, 11]
+
+
 def test_hook_once_in_skill_or_false_is_not_reported(tmp_path):
     write(
         tmp_path,
