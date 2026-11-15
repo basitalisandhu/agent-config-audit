@@ -16,8 +16,145 @@ import re
 _KEY = re.compile(r"^([^\s:#'\"][^:#]*?|\"[^\"]*\"|'[^']*')\s*:(?:\s+(.*))?$")
 
 
+def _parse_flow(text: str):
+    def _parse(s: str, i: int, depth: int = 0):
+        if depth > 50 or i >= len(s):
+            return None, len(s)
+        while i < len(s) and s[i].isspace():
+            i += 1
+        if i >= len(s):
+            return None, len(s)
+        if s[i] == "[":
+            i += 1
+            items = []
+            while i < len(s):
+                while i < len(s) and s[i].isspace():
+                    i += 1
+                if i < len(s) and s[i] == "]":
+                    return items, i + 1
+                val, i = _parse_val(s, i, depth + 1)
+                if val is None and i >= len(s):
+                    return None, len(s)
+                items.append(val)
+                while i < len(s) and s[i].isspace():
+                    i += 1
+                if i < len(s) and s[i] == ",":
+                    i += 1
+                elif i < len(s) and s[i] == "]":
+                    return items, i + 1
+                else:
+                    return None, len(s)
+            return None, len(s)
+        elif s[i] == "{":
+            i += 1
+            mapping: dict = {}
+            while i < len(s):
+                while i < len(s) and s[i].isspace():
+                    i += 1
+                if i < len(s) and s[i] == "}":
+                    return mapping, i + 1
+                key, i = _parse_key(s, i)
+                if key is None or i >= len(s) or s[i] != ":":
+                    return None, len(s)
+                i += 1
+                while i < len(s) and s[i].isspace():
+                    i += 1
+                val, i = _parse_val(s, i, depth + 1)
+                mapping[key] = val
+                while i < len(s) and s[i].isspace():
+                    i += 1
+                if i < len(s) and s[i] == ",":
+                    i += 1
+                elif i < len(s) and s[i] == "}":
+                    return mapping, i + 1
+                else:
+                    return None, len(s)
+            return None, len(s)
+        return None, len(s)
+
+    def _parse_key(s: str, i: int):
+        while i < len(s) and s[i].isspace():
+            i += 1
+        if i >= len(s):
+            return None, i
+        if s[i] in ('"', "'"):
+            q = s[i]
+            start = i + 1
+            i += 1
+            while i < len(s):
+                if s[i] == q:
+                    key = s[start:i]
+                    i += 1
+                    while i < len(s) and s[i].isspace():
+                        i += 1
+                    return key, i
+                if q == '"' and s[i] == "\\" and i + 1 < len(s):
+                    i += 2
+                else:
+                    i += 1
+            return None, len(s)
+        start = i
+        while i < len(s) and s[i] not in ":{}[]":
+            i += 1
+        key = s[start:i].strip()
+        while i < len(s) and s[i].isspace():
+            i += 1
+        return (key if key else None), i
+
+    def _parse_val(s: str, i: int, depth: int):
+        while i < len(s) and s[i].isspace():
+            i += 1
+        if i >= len(s):
+            return None, i
+        if s[i] in "[{":
+            return _parse(s, i, depth)
+        if s[i] in ('"', "'"):
+            q = s[i]
+            start = i
+            i += 1
+            while i < len(s):
+                if s[i] == q:
+                    i += 1
+                    break
+                if q == '"' and s[i] == "\\" and i + 1 < len(s):
+                    i += 2
+                else:
+                    i += 1
+            val_str = s[start:i]
+            if q == '"':
+                try:
+                    return json.loads(val_str), i
+                except ValueError:
+                    return val_str[1:-1], i
+            else:
+                return val_str[1:-1].replace("''", "'"), i
+        start = i
+        while i < len(s) and s[i] not in ",]}":
+            i += 1
+        raw = s[start:i].strip()
+        if raw in {"", "~", "null"}:
+            return None, i
+        if raw in {"true", "false"}:
+            return (raw == "true"), i
+        return raw, i
+
+    try:
+        res, end = _parse(text, 0)
+        while end < len(text) and text[end].isspace():
+            end += 1
+        if end < len(text) and text[end] == "#":
+            end = len(text)
+        if end != len(text):
+            return None
+        return res
+    except Exception:
+        return None
+
+
 def _scalar(raw: str):
     value = raw.strip()
+    if value.startswith(("[", "{")):
+        return _parse_flow(value)
     if value.startswith('"'):
         end = value.rfind('"')
         if end > 0:
