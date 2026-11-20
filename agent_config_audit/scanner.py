@@ -282,6 +282,10 @@ class Auditor:
         if "permissions" in data or "hooks" in data or "enableAllProjectMcpServers" in data or "disableAllHooks" in data or any(k in data for k in HELPER_KEYS):
             self.scan_settings(path, text, data)
             self.scan_helpers(path, text, data)
+        if "autoApprovalSettings" in data or "toolAutoApprove" in data or any(
+            key in data for key in ("windsurf.cascadeCommandsAllowList", "cascadeCommandsAllowList")
+        ):
+            self.scan_host_permissions(path, text, data)
         plugin_root = self.plugin_root_for(path)
         if isinstance(data.get("hooks"), dict):
             self.scan_hooks(path, text, data["hooks"], plugin_root=plugin_root)
@@ -369,6 +373,54 @@ class Auditor:
         if broad and not lists["deny"]:
             self.add("PERM-011", "low", "permissions", "Broad allow rules with no deny rules", path, None, "permissions.deny is empty",
                      "Add deny rules for the commands and paths that must never run (for example Bash(rm -rf *), Read(./.env), Bash(curl *)).")
+
+    def scan_host_permissions(self, path: Path, text: str, data: dict) -> None:
+        """Inspect persisted Windsurf and Cline command/MCP approval settings."""
+        allowlist = data.get("windsurf.cascadeCommandsAllowList", data.get("cascadeCommandsAllowList"))
+        if isinstance(allowlist, list):
+            for command in allowlist:
+                if not isinstance(command, str) or not command.strip():
+                    continue
+                command = command.strip()
+                if command in {"*", "**"}:
+                    self.add(
+                        "PERM-003", "critical", "permissions",
+                        "Windsurf auto-approves every terminal command", path,
+                        self.line_of(text, command), command,
+                        "Remove the catch-all command allowlist entry. Use narrowly scoped command patterns and keep Turbo/automatic execution disabled."
+                    )
+                else:
+                    self.scan_allow_rule(path, text, f"Bash({command})")
+
+        # Cline's legacy enabled field is retained for compatibility and is always true by
+        # default; the action-level flags are the effective approvals.
+        settings = data.get("autoApprovalSettings")
+        actions = settings.get("actions") if isinstance(settings, dict) else None
+        if isinstance(actions, dict):
+            if actions.get("executeAllCommands") is True:
+                self.add(
+                    "PERM-002", "high", "permissions",
+                    "Cline auto-approves every terminal command", path,
+                    self.line_of(text, '"executeAllCommands"'),
+                    "autoApprovalSettings.actions.executeAllCommands: true",
+                    "Disable Execute all commands. Approve only specific, reviewed commands so injected instructions cannot run arbitrary shell operations."
+                )
+            if actions.get("useMcp") is True:
+                self.add(
+                    "PERM-006", "medium", "permissions",
+                    "Cline auto-approves every MCP tool", path,
+                    self.line_of(text, '"useMcp"'),
+                    "autoApprovalSettings.actions.useMcp: true",
+                    "Disable automatic MCP approval or approve individual read-only tools; keep write and delete tools behind a prompt."
+                )
+
+        if data.get("toolAutoApprove") is True:
+            self.add(
+                "PERM-003", "critical", "permissions",
+                "Cline automatically approves all tools", path,
+                self.line_of(text, '"toolAutoApprove"'), "toolAutoApprove: true",
+                "Set toolAutoApprove to false and use per-tool approval policies instead."
+            )
 
     def scan_helpers(self, path: Path, text: str, data: dict) -> None:
         """Settings keys whose value is a command Claude Code runs (https://code.claude.com/docs/en/settings-reference)."""

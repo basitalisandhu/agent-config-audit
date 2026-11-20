@@ -1,0 +1,13 @@
+{
+  "autoApprovalSettings": {
+    "enabled": true,
+    "actions": {
+      "readFiles": true,
+      "editFiles": true,
+      "executeSafeCommands": true,
+      "executeAllCommands": true,
+      "useBrowser": true,
+      "useMcp": true
+    }
+  }
+}

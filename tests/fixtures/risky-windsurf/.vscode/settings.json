@@ -1,0 +1,7 @@
+{
+  "windsurf.cascadeCommandsAllowList": [
+    "*",
+    "rm *"
+  ],
+  "windsurf.cascadeCommandsDenyList": []
+}

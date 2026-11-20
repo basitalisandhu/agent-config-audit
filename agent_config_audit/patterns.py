@@ -21,7 +21,7 @@ PROJECT_GLOBS = [
     "plugins/*/.mcp.json", "plugins/*/skills/*/SKILL.md", "plugins/*/agents/**/*.md", "plugins/*/commands/**/*.md",
     ".cursorrules", ".cursor/rules/**/*.mdc", ".cursor/rules/**/*.md", ".cursor/mcp.json", "AGENTS.md",
     ".github/copilot-instructions.md", ".github/instructions/**/*.md", ".windsurfrules", ".windsurf/rules/**/*",
-    ".clinerules", ".clinerules/**/*", ".vscode/mcp.json", ".gemini/settings.json", "GEMINI.md", ".codex/config.toml",
+    ".clinerules", ".clinerules/**/*", ".vscode/mcp.json", ".vscode/settings.json", ".gemini/settings.json", "GEMINI.md", ".codex/config.toml",
     ".roo/rules/**/*", ".aider.conf.yml", ".continue/config.json", ".continue/config.yaml",
 ]
 HOME_FILES = [
@@ -30,6 +30,15 @@ HOME_FILES = [
     "~/.gemini/settings.json", "~/Library/Application Support/Claude/claude_desktop_config.json",
     "~/.config/Claude/claude_desktop_config.json", "~/AppData/Roaming/Claude/claude_desktop_config.json",
     "~/.continue/config.json", "~/.continue/config.yaml",
+    "~/Library/Application Support/Windsurf/User/settings.json", "~/.config/Windsurf/User/settings.json",
+    "~/AppData/Roaming/Windsurf/User/settings.json",
+    "~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/globalState.json",
+    "~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/globalState.json",
+    "~/AppData/Roaming/Code/User/globalStorage/saoudrizwan.claude-dev/globalState.json",
+    "~/Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
+    "~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
+    "~/AppData/Roaming/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json",
+    "~/.cline/data/settings/cline_mcp_settings.json", "~/.cline/data/settings/global-settings.json",
 ]
 # @path imports in CLAUDE.md and AGENTS.md: relative to the importing file, at most four hops
 # (https://code.claude.com/docs/en/memory#import-additional-files). Not after a word character, so e-mail addresses do not count.

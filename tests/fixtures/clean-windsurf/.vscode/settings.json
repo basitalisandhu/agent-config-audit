@@ -1,0 +1,10 @@
+{
+  "windsurf.cascadeCommandsAllowList": [
+    "git status *",
+    "npm test"
+  ],
+  "windsurf.cascadeCommandsDenyList": [
+    "rm *",
+    "sudo *"
+  ]
+}

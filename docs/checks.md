@@ -4,7 +4,7 @@ Every finding has an id, a severity (`critical`, `high`, `medium`, `low`, `info`
 
 The rule ids are shared with the `agent-config-audit` skill in [agent-security-skills](https://github.com/basitalisandhu/agent-security-skills), so a finding from either tool means the same thing.
 
-## Permissions (Claude Code settings.json, Codex config.toml)
+## Permissions (Claude Code settings.json, Codex config.toml, Windsurf and Cline settings)
 
 <!-- rules:permissions -->
 | ID | Trigger | Why it matters |
@@ -97,6 +97,8 @@ Files imported with `@path` from `CLAUDE.md`, `CLAUDE.local.md`, `AGENTS.md` and
 | <a id="cfg-001"></a>CFG-001 [low] | JSON config does not parse (silently ignored by hosts) |
 <!-- /rules:other -->
 
+Windsurf command approvals are configured in the editor settings under Cascade → Auto Execution; the documented command-list keys are [`windsurf.cascadeCommandsAllowList`](https://docs.windsurf.com/windsurf/terminal) and `windsurf.cascadeCommandsDenyList`. Cline persists its VS Code approval actions in [`globalState.json`](https://github.com/cline/cline/blob/main/apps/vscode/src/shared/AutoApprovalSettings.ts) and MCP tool approvals in [`cline_mcp_settings.json`](https://github.com/cline/cline/blob/main/apps/vscode/src/services/mcp/schemas.ts); the CLI stores its global approval policy in [`global-settings.json`](https://github.com/cline/cline/blob/main/sdk/packages/core/src/services/global-settings.ts). The scanner reports catch-all approvals and risky command patterns, not ordinary narrow allowlists.
+
 ## Files scanned
 
 Relative to the audited root:
@@ -104,8 +106,8 @@ Relative to the audited root:
 - Claude Code: `CLAUDE.md`, `CLAUDE.local.md` and `AGENTS.md` at any depth (nested ones load on demand), `.claude/CLAUDE.md`, `.claude/AGENTS.md`, `.claude/rules/**/*.md`, `.claude/output-styles/**`, `.claude/settings.json`, `.claude/settings.local.json`, `.claude/commands/**`, `.claude/skills/**/SKILL.md`, `.claude/agents/**`, `.claude/hooks/**`, `.mcp.json`
 - Plugins: `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `hooks/hooks.json`, `skills/*/SKILL.md`, `agents/**`, `commands/**`, `plugins/*/...`. The manifest is optional, so every `plugins/<name>/` directory with a default component and every relative `source` in `marketplace.json` is a plugin root; in each root the scanner reads `.claude-plugin/plugin.json`, `hooks/*.json`, `.mcp.json`, `.lsp.json`, `monitors/monitors.json`, `settings.json`, `SKILL.md`, `skills/*/SKILL.md`, `agents/**`, `commands/**`, `output-styles/**` and hook scripts, plus the JSON files that `plugin.json` names in `hooks`, `mcpServers` and `lspServers` ([manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference))
 - Cursor: `.cursorrules`, `.cursor/rules/**/*.mdc`, `.cursor/rules/**/*.md`, `.cursor/mcp.json`
-- Others: `AGENTS.md`, `.github/copilot-instructions.md`, `.github/instructions/**`, `.windsurfrules`, `.windsurf/rules/**`, `.clinerules`, `.vscode/mcp.json`, `.gemini/settings.json`, `GEMINI.md`, `.codex/config.toml`, `.roo/rules/**`, `.aider.conf.yml`, `.continue/config.json`, `.continue/config.yaml`
-- With `--include-home`: `~/.claude/settings.json`, `~/.claude/CLAUDE.md`, `~/.claude.json` (user and per-project MCP servers), `~/.claude/rules/**`, `~/.claude/agents/**`, `~/.claude/skills/**/SKILL.md`, `~/.claude/commands/**`, `~/.claude/output-styles/**`, `~/.cursor/mcp.json`, `~/.codex/config.toml`, `~/.gemini/settings.json`, the Claude Desktop `claude_desktop_config.json` on macOS, Linux and Windows, `~/.continue/config.*`
+- Others: `AGENTS.md`, `.github/copilot-instructions.md`, `.github/instructions/**`, `.windsurfrules`, `.windsurf/rules/**`, `.clinerules`, `.vscode/mcp.json`, `.vscode/settings.json` (Windsurf workspace command allow/deny lists), `.gemini/settings.json`, `GEMINI.md`, `.codex/config.toml`, `.roo/rules/**`, `.aider.conf.yml`, `.continue/config.json`, `.continue/config.yaml`
+- With `--include-home`: `~/.claude/settings.json`, `~/.claude/CLAUDE.md`, `~/.claude.json` (user and per-project MCP servers), `~/.claude/rules/**`, `~/.claude/agents/**`, `~/.claude/skills/**/SKILL.md`, `~/.claude/commands/**`, `~/.claude/output-styles/**`, `~/.cursor/mcp.json`, `~/.codex/config.toml`, `~/.gemini/settings.json`, the Claude Desktop `claude_desktop_config.json` on macOS, Linux and Windows, `~/.continue/config.*`, Windsurf `User/settings.json` on macOS, Linux and Windows (including `windsurf.cascadeCommandsAllowList`), and Cline `globalState.json` plus `settings/cline_mcp_settings.json` in VS Code global storage on macOS, Linux and Windows, and `~/.cline/data/settings/global-settings.json` plus `cline_mcp_settings.json` for the CLI (including `autoApprovalSettings.actions`, `toolAutoApprove` and per-server `autoApprove`)
 - With `--extra FILE`: any other file
 
 Files larger than 2 MB are skipped and reported under scan errors. `node_modules` and `.git` are never entered.
